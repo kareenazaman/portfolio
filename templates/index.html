@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+
+<header id="mini-header" class="mini-header">
+  <a href="/" id="mini-home" class="mini-avatar-wrap" aria-label="Go to home">
+    <img src="{{ url_for('static', filename='avatar.png') }}" class="mini-avatar" alt="avatar" />
+  </a>
+</header>
+
+<script id="projects-data" type="application/json">
+  {{ projects | tojson }}
+</script>
+
+
+<!-- HERO -->
+<section id="hero" class="text-center py-5 hero">
+  <h1 class="hero-title">Hi, I’m {{ name }} 👋🏻</h1>
+  <p class="hero-subtitle"><strong>Software Developer • Computer Science Student • Assistant Manager</strong></p>
+  <a href="/" aria-label="Go to home">
+    <img src="{{ url_for('static', filename='avatar.png') }}" class="avatar shadow-sm" alt="avatar" />
+  </a>
+  <div id="ask-top" class="ask-holder">
+    <div id="ask-box" class="ask-box shadow-sm">
+      <input id="ask-input" placeholder="Ask me anything..." />
+      <button id="ask-send" type="button" aria-label="Send">→</button>
+    </div>
+  </div>
+</section>
+
+<!-- Projects gallery mounts here (JS fills it) -->
+<section id="projects-gallery" class="container section projects-gallery" hidden></section>
+
+<!-- Chat stream -->
+<section id="chat" class="chat-area {% if chat_mode %}chat-view{% endif %}">
+  <div id="chat-header"></div>
+  <div id="chat-stream" class="chat-stream"></div>
+</section>
+
+<!-- Scroll-to-bottom button (chat page) -->
+<button id="scrollToBottomBtn" type="button" aria-label="Scroll to bottom">
+  <!-- Down arrow icon (matches your reference style) -->
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M6 10l6 6 6-6"></path>
+  </svg>
+</button>
+
+<!-- Chat glass container (empty on load; we’ll move tiles+ask into it in JS) -->
+<div id="chat-footer" class="chat-footer" hidden></div>
+
+<!-- Feature tiles (single copy) -->
+<section id="tiles" class="container section">
+  <div class="feature-grid">
+    <button class="feature-tile" type="button" data-section="me">
+      <span class="tile-emoji">🥰</span><span class="tile-title">Me</span>
+    </button>
+    <button class="feature-tile" type="button" data-section="projects">
+      <span class="tile-emoji">💼</span><span class="tile-title">Projects</span>
+    </button>
+    <button class="feature-tile" type="button" data-section="skills">
+      <span class="tile-emoji">👩🏻‍💻</span><span class="tile-title">Skills</span>
+    </button>
+    <button class="feature-tile" type="button" data-section="contact">
+      <span class="tile-emoji">🔎</span><span class="tile-title">Contact</span>
+    </button>
+  </div>
+</section>
+
+<!-- Ask holder (single copy) -->
+<section id="ask" class="container section ask-area">
+  <div id="ask-bottom" class="ask-holder"></div>
+</section>
+
+<!-- ✅ Skills logos list (read by JS for the skills grid) -->
+<script id="skills-logos" type="application/json">
+  ["python","js","java","fastapi","flutter","firebase"]
+</script>
+
+{% endblock %}

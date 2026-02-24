@@ -1,0 +1,269 @@
+- title: SiteGuardian
+  year: 2024
+  image: /static/images/siteguardian.jpg   # <- drop an image here (or keep a placeholder)
+  desc: >
+    A multi-sensor safety device with a real-time web dashboard for construction sites.
+    Detects toxic gases, fire, extreme temperatures, and panic events to help managers
+    respond faster and protect workers.
+
+  stack:
+    - Arduino (C/C++ via Arduino IDE)
+    - Python
+    - Firebase / Firestore (Realtime)
+    - Web Dashboard
+
+  role: Testing and Implementation Engineer
+  links:
+    demo: "https://youtu.be/Pgs2mwteLsQ?si=ObQujVzwK-z13dgl"  # <- YouTube walkthrough
+
+  highlights:
+    - Hardware + software prototype integrating multiple sensors with a live web dashboard.
+    - Team collaboration across device, firmware, backend, and UI.
+    - Real-time alarms delivered via Firestore based on thresholded sensor readings.
+
+  device:
+    outside:
+      - Biodegradable plastic casing; non-flammable, eco-friendly
+      - Belt-mount design
+      - Panic button
+      - Two LEDs:
+      - Red: power / on-off feedback
+      - Yellow: internet status (steady=connected, flicker=searching, off=not connected)
+      - Ventilation shaft for air sampling
+      - Exposed flame sensor for accuracy
+    inside:
+      sensors:
+        - MQ9 Gas Sensor (CO, CH4)
+        - DHT11 Temperature Sensor
+        - Flame Sensor
+        - Panic Button (triple-press detection)
+        - ECG (planned)
+        - Electric shock detection (planned)
+
+  firmware:
+    arduino:
+      description: >
+        Reads sensors and raises alarms when thresholds are exceeded.
+        Sends events over serial (PC port) for the Python service to consume.
+      thresholds:
+        temperature_high_c: 40
+        gas_ppm_high: 200
+      triggers:
+        - Fire detected (flame sensor)
+        - CO/CH4 above threshold
+        - Temperature too high / too low
+        - Panic button pressed 3× within 5 seconds
+      payload:
+        alarm: true
+        status_map:
+          1: Panic button triggered
+          2: Dangerous gas detected
+          3: Fire detected
+          4: Temperature too high
+          5: Temperature too low
+    python:
+      description: >
+        Reads serial data from the device and publishes alarm + reason to Firestore
+        (Realtime Database) to drive the dashboard.
+
+  lessons:
+    - Stronger understanding of end-to-end prototyping (device → firmware → backend → UI)
+    - Real-time data modeling in Firebase
+    - Practical teamwork and scope management during a competition
+
+
+- title: SkinSense Pro
+  year: 2025
+  category: "Academic Project – Mobile App Development"
+  image: /static/images/skinsense1.png
+  gallery:
+    - "/static/images/skinsense2.png"
+    - "/static/images/skinsense3.png"
+  stack:
+    - Java
+    - Android Studio
+    - Firebase Authentication
+    - Firebase Firestore
+  desc: >
+    <strong>SkinSense Pro</strong> is a personalized <strong>Android skincare application</strong> 
+    developed as part of our <strong>Software Architecture</strong> course. The app helps users make 
+    informed skincare decisions by analyzing product ingredients and tailoring recommendations 
+    based on individual skin types and concerns.
+    
+    Users can <strong>scan skincare product barcodes</strong> to instantly retrieve ingredient 
+    information, receive <strong>personalized recommendations</strong>, and save products to a 
+    <strong>favorites list</strong> for easy access. SkinSense Pro also supports 
+    <strong>secure user authentication</strong> and real-time data storage using Firebase.
+    
+    This project was built collaboratively as part of our Mobile App Development course, with a strong 
+    focus on clean architecture, modular design, and real-world Android application development.
+  links:
+    demo: "https://www.youtube.com/shorts/x9dly2Enjko?si=ucfUxlAaMuSxzkXn"
+
+
+- title: Jarvis
+  year: 2025
+  category: "Personal AI Assistant – Full-Stack Project"
+  image: "/static/images/jarvis.jpg"
+  stack:
+    - Python
+    - Flask
+    - Local LLM (Ollama / Mistral)
+    - YAML / Markdown
+    - HTML / CSS / JavaScript
+  desc: >
+    <strong>Jarvis</strong> is a modular, retrieval-first <strong>AI personal assistant</strong> designed to
+    understand and answer questions about my background, skills, and projects with accuracy and consistency.
+    Instead of relying solely on generative responses, Jarvis prioritizes <strong>structured knowledge
+    retrieval</strong> from YAML and Markdown sources to deliver grounded, portfolio-aware answers.
+
+    The system uses a <strong>hybrid architecture</strong> combining intent detection, confidence gating,
+    and retrieval fallback. For known portfolio questions (skills, projects, experience, contact details),
+    Jarvis responds directly from curated data files, while an optional <strong>local LLM</strong> handles
+    open-ended or conversational queries.
+
+    Built with <strong>Flask</strong>, Jarvis is fully extensible and supports session-aware responses,
+    memory-safe interactions, and future integrations such as voice input, scheduling, and task management.
+    This project demonstrates my focus on <strong>AI reliability, system design, and real-world usability</strong>
+    rather than black-box generation.
+
+
+
+
+- title: AI-Powered Portfolio Website
+  year: 2025
+  image: /static/images/portfolio.jpg
+  desc: >
+    An intelligent personal portfolio website featuring an AI chatbot assistant 
+    that speaks in first-person. Built with Flask, scikit-learn intent classification, 
+    and TF-IDF retrieval for natural conversations about my projects, skills, and experience.
+
+  stack:
+    - Python (Flask)
+    - scikit-learn (ML)
+    - JavaScript
+    - HTML/CSS
+    - TF-IDF Retrieval
+    - YAML
+
+  role: Full-Stack Developer & ML Engineer
+  links:
+    demo: "https://kareenazaman.com"
+
+  highlights:
+    - Developed AI chatbot with intent classification and retrieval-based QA system
+    - Implemented typing animations and natural conversation flow with context tracking
+    - Built FLIP-animated project modals with smooth transitions
+    - Created glassmorphic UI with responsive design and mobile optimization
+    - Trained custom ML model for portfolio-specific question routing
+    - Integrated session memory to prevent repetitive responses
+
+- title: Forseers
+  year: 2025
+  category: "NASA Space Apps Hackathon – Team Project"
+  image: "/static/images/forseers.png"
+  gallery:
+    - "/static/images/fire.png"
+  stack:
+    - JavaScript
+    - Flask
+    - Open Meteo
+    - NASA FIRMS API
+    - Weather & AQI APIs
+  desc: >
+    <strong>Forseers</strong> is a web application built for the <strong>NASA Space Apps Hackathon</strong> 
+    that can detect <strong>Weather, Air Quality and Fire</strong> around the area. Users can set their 
+    current location on an interactive <strong>Mapbox</strong> map and see live weather, short-term 
+    forecasts, and air-quality metrics in a clean, dashboard-style UI.
+  
+    The app overlays a <strong>heatmap of active fires</strong> using NASA <strong>FIRMS</strong> satellite data, 
+    allowing users to instantly spot nearby fire clusters.
+  
+    Our future roadmap includes training our own <strong>smoke-prediction ML model</strong> to forecast 
+    smoke spread from active fires and deliver early alerts to nearby communities, along with 
+    expanded safety tips and emergency-readiness features.
+  links:
+    demo: https://air-quality-iota.vercel.app/
+
+- title: Orchid
+  year: 2025
+  category: "SQL Injection Detection – Personal Project"
+  image: "/static/images/orchid1.png"
+  gallery:
+    - "/static/images/orchid3.png"
+  stack:
+    - Machine Learning
+    - Logistic Regression
+    - TF-IDF
+    - FastAPI
+    - PostgreSQL
+    - Node.js
+  desc: >
+    <strong>Orchid</strong> is a machine learning model built for real-time <strong>SQL injection detection</strong> in web applications.
+    It uses <strong>TF-IDF features</strong> and a <strong>Logistic Regression classifier</strong> to identify suspicious or obfuscated SQL queries.
+    
+    Orchid helps prevent security breaches by analyzing each query before it reaches the database, flagging any potential SQL injection attempts.
+    
+    The model processes SQL queries in <strong>under 5 milliseconds</strong> and achieved over <strong>90% accuracy</strong> on a noisy, obfuscated test set.
+    
+    Our future roadmap includes expanding Orchid to detect more complex attack patterns, integrating it with a broader security monitoring system, and improving its detection speed and scalability for enterprise-level applications.
+
+
+- title: Lumi
+  year: 2025
+  category: "University Project – Property Management App"
+  image: "/static/images/lumi.png"
+  stack:
+    - Firebase Authentication
+    - Firebase Firestore
+    - Firebase Storage
+    - Flutter / React Native
+    - Cloud Functions
+  desc: >
+    <strong>Lumi</strong> is a modern <strong>property management mobile application</strong> designed to 
+    simplify rental management for <strong>landlords, property managers, and renters</strong>. 
+    The app addresses real-world challenges such as <strong>unorganized rent collection</strong>, 
+    <strong>scattered communication</strong>, <strong>lost maintenance requests</strong>, and 
+    <strong>difficulty sharing important building updates</strong>.
+
+    Lumi features a <strong>clean, interactive UI</strong> paired with <strong>secure Firebase Authentication</strong> 
+    to ensure safe access for both managers and renters. All property, tenant, and rent data is 
+    stored and synced in real time using <strong>Firestore</strong>, while <strong>Firebase Storage</strong> 
+    handles documents, images, and media files such as maintenance photos and rent receipts.
+
+    Key features include <strong>rent payment records</strong>, <strong>maintenance request tracking</strong>, 
+    <strong>in-app messaging</strong>, a centralized <strong>announcement page</strong> for managers, 
+    and an <strong>NFC smart door access system</strong> available in higher subscription tiers.
+
+    Lumi follows a <strong>subscription-based model</strong> with Free, Standard, and Pro plans, 
+    making it scalable for landlords managing anywhere from a single unit to medium-sized property portfolios.
+    
+
+- title: Blushwork Manager (Admin + Public Tracking System)
+  year: 2026
+  image: /static/images/bw1.png
+  gallery:
+    - "/static/images/bw2.png"
+    - "/static/images/bw3.png"
+    - "/static/images/bw4.png"
+  desc: >
+    A full-stack order management and public tracking system built for a small business, Blushwork.
+    The platform includes an admin-only dashboard to create orders, manage shipments,
+    upload product photos with pricing and model tagging and a public Track Order page
+    that customers can use without logging in. Designed with role-based access control
+    and secure Firestore rules to separate private admin data from public-safe tracking data.
+
+  stack:
+    - React
+    - Firebase Firestore
+    - Firebase Storage
+    - Firebase Auth
+    - JavaScript
+    - HTML/CSS
+    - Vercel Deployment
+
+  role: Full-Stack Developer & System Designer
+  links:
+    demo: "https://blushwork-admin.vercel.app"
+
+

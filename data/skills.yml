@@ -1,0 +1,51 @@
+Frontend:
+  - HTML
+  - CSS
+  - JavaScript
+  - React
+  - Bootstrap
+  - Responsive UI Design
+
+Backend:
+  - Python (Flask)
+  - REST APIs
+  - Session & Auth Handling
+  - Java (Core, Android-focused)
+  - MySQL
+  - SQLite
+
+AI & Machine Learning:
+  - Machine Learning Fundamentals
+  - scikit-learn
+  - TF-IDF Vectorization
+  - Intent Classification
+  - NLP Basics
+  - Retrieval-based QA Systems
+  - Prompt Engineering
+  - Model Evaluation & Tuning
+
+Mobile Development:
+  - Android (Java)
+  - Android Studio
+  - Firebase Integration
+  - RecyclerView & UI Components
+
+Databases & Cloud:
+  - Firebase
+  - Firestore
+  - SQL Databases
+  - Data Modeling
+
+Tools & Workflow:
+  - Git
+  - GitHub
+  - Virtual Environments
+  - Linux / VPS Basics
+  - Gunicorn
+  - YAML / JSON Configs
+
+Leadership & Collaboration:
+  - Team Leadership
+  - Project Planning
+  - Cross-functional Collaboration
+  - Technical Communication

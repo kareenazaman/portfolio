@@ -1,0 +1,160 @@
+text,intent
+hi,greeting
+hello,greeting
+hey,greeting
+hey there,greeting
+hello kareena,greeting
+good morning,greeting
+good evening,greeting
+hi kareena,greeting
+hiya,greeting
+yo,greeting
+what's up,greeting
+hey what's up,greeting
+tell me about yourself,about
+who are you,about
+introduce yourself,about
+what do you do,about
+who is kareena,about
+tell me who you are,about
+about you,about
+your background,about
+tell me about kareena,about
+what's your story,about
+where are you from,about
+where do you study,about
+what do you study,about
+show me your projects,projects
+what projects have you built,projects
+projects?,projects
+show projects,projects
+list your projects,projects
+display projects,projects
+what have you made,projects
+what have you built,projects
+show me what you've built,projects
+your work,projects
+portfolio projects,projects
+tell me about your projects,projects
+show me project details,projects
+what skills do you have,skills
+show me your skills,skills
+skills?,skills
+technical skills?,skills
+tech stack?,skills
+what languages do you know,skills
+what technologies do you use,skills
+what can you code in,skills
+programming languages,skills
+frameworks you know,skills
+what tools do you use,skills
+your technical skills,skills
+contact info?,contact
+how do I contact you,contact
+email?,contact
+linkedin?,contact
+how can I reach you,contact
+contact details,contact
+how to reach you,contact
+your email,contact
+your contact,contact
+get in touch,contact
+reach out,contact
+connect with you,contact
+tell me more,followup
+explain more,followup
+continue,followup
+go on,followup
+what about that,followup
+and then what,followup
+more details,followup
+elaborate,followup
+tell me more about it,followup
+can you expand on that,followup
+more info,followup
+that makes no sense,offtopic
+what's the weather,offtopic
+tell me a joke,offtopic
+play a game,offtopic
+do you like food,offtopic
+who won the game,offtopic
+what's the news,offtopic
+tell me about politics,offtopic
+what movies do you like,offtopic
+recommend a restaurant,offtopic
+what's trending,offtopic
+sing a song,offtopic
+tell me a story,offtopic
+you are pretty,smalltalk_positive
+u r pretty,smalltalk_positive
+you look cute,smalltalk_positive
+cute bot,smalltalk_positive
+i love this,smalltalk_positive
+this looks great,smalltalk_positive
+nice,smalltalk_positive
+cool,smalltalk_positive
+amazing,smalltalk_positive
+beautiful,smalltalk_positive
+awesome work,smalltalk_positive
+impressive,smalltalk_positive
+great portfolio,smalltalk_positive
+this is cool,smalltalk_positive
+love it,smalltalk_positive
+u r stupid,smalltalk_negative
+you are stupid,smalltalk_negative
+you suck,smalltalk_negative
+bad bot,smalltalk_negative
+you are dumb,smalltalk_negative
+annoying,smalltalk_negative
+useless,smalltalk_negative
+hate you,smalltalk_negative
+this is terrible,smalltalk_negative
+not helpful,smalltalk_negative
+you're bad,smalltalk_negative
+are you smart,smalltalk_other
+do you like me,smalltalk_other
+are you real,smalltalk_other
+what's your favourite project,smalltalk_other
+do you have a favourite project,smalltalk_other
+are you single,smalltalk_other
+what's your favourite color,smalltalk_other
+why are you like this,smalltalk_other
+do you think you're good,smalltalk_other
+are you a robot,smalltalk_other
+are you human,smalltalk_other
+who made you,smalltalk_other
+how old are you,smalltalk_other
+how are you,smalltalk_other
+how r u,smalltalk_other
+how are u,smalltalk_other
+hru,smalltalk_other
+how's it going,smalltalk_other
+how you doing,smalltalk_other
+wyd,smalltalk_other
+are you from bangladesh?,origin
+are u from bangladesh?,origin
+are you bangladeshi?,origin
+are u bangladeshi?,origin
+where are your roots?,origin
+are you originally from bangladesh?,origin
+your origin?,origin
+bye,farewell
+goodbye,farewell
+see you,farewell
+see you later,farewell
+talk to you later,farewell
+take care,farewell
+catch you later,farewell
+i have to go,farewell
+i’m leaving,farewell
+i am leaving,farewell
+gotta go,farewell
+logging off,farewell
+signing off,farewell
+that’s all,farewell
+thanks bye,farewell
+thank you bye,farewell
+bye bye,farewell
+byee,farewell
+ok bye,farewell
+okay bye,farewell
