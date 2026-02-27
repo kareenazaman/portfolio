@@ -55,10 +55,10 @@ JUDGMENT_PATTERNS = {
 
 JUDGMENT_ANSWERS = {
     "smart": [
-        "Instead of a label like ‘smart’, I’d point to proof: Kareena builds real applications, debugs problems, and improves through iteration across Android, backend APIs, and ML features.",
-        "I’d say Kareena is capable and quick to learn — the best evidence is what she’s built and shipped.",
-        "I'd say so - she literally built me, her AI version lol",
-        "She’s a strong problem-solver. The clearest evidence is her portfolio and how she iterates on real projects."
+        "Instead of a label like ‘smart’, I’d point to proof: Kareena aka I build real applications, debugs problems, and improves through iteration across Android, backend APIs, and ML features.",
+        "I’d say i'm pretty capable and quick to learn — the best evidence is what I build and shipped.",
+        "I'd say so - I aka Kareena literally built me, her AI version lol",
+        "I'd say so hopefully haha. The clearest evidence is my portfolio and how i iterates on real projects."
     ]
 }
 
