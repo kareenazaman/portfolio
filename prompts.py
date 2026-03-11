@@ -12,13 +12,11 @@ EMPLOYER_PATTERNS = {
         "collaborate", "collaboration", "work with others"
     ],
     "internship": [
-        "do you want an internship", "are you looking for an internship",
-        "are u looking for an internship", "are you open to internships",
+        "do you want an internship", "are you looking for an internship", "are you looking for internship", "are you open to internships",
         "summer internship", "intern role", "internship next summer", "are you looking for a job", "are u looking for job", "looking for job?", "do u need job"
     ],
     "job": [
-        "do you need a job", "are you looking for a job",
-        "are u looking for a job", "are you open to work", "open to work"
+        "do you need a job", "do you need job", "are you looking for a job", "are you looking for job", "are you open to work", "open to work"
     ],
 }
 
