@@ -1317,11 +1317,12 @@ margin: 20px; }
   background: transparent;
   cursor: pointer;
   padding: 2px;
-  margin-left: 2px;       /* just a small gap from the email */
+  margin-left: 2px;
   display: inline-flex;
   align-items: center;
   border-radius: 4px;
   transition: background .15s ease, transform .12s ease, opacity .2s ease;
+  position: relative; /* REQUIRED for the absolute tooltip to anchor here */
 }
 
 .bubble .copy-btn:hover{ background: rgba(0,0,0,.04); transform: translateY(-1px); }
@@ -1331,10 +1332,9 @@ margin: 20px; }
 /* “Copied!” micro tooltip */
 .bubble .copy-btn.copied::after{
   content: "Copied!";
-  position: relative; /* ✅ add */
-  top: -26px;
-  left: 50%;
-  transform: translateX(-50%);
+  position: absolute; /* Floats above, stops distorting the button */
+  bottom: 120%;       /* Pushes it cleanly above the icon */
+  right: 0;           /* Pins it to the right so it never bleeds off a mobile screen */
   background: #111;
   color: #fff;
   font-size: .75rem;
@@ -1342,6 +1342,8 @@ margin: 20px; }
   border-radius: 6px;
   white-space: nowrap;
   box-shadow: 0 4px 10px rgba(0,0,0,.2);
+  z-index: 50;
+  pointer-events: none;
 }
 
 
