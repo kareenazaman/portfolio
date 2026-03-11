@@ -30,47 +30,46 @@ document.addEventListener("DOMContentLoaded", () => {
 
   initCertLightbox();
 
-//Ai chat animation
+  //Ai chat animation
   function createTypewriter(el, speedMs = 14) {
-  let pendingText = "";
-  let shownText = "";
-  let rafId = null;
-  let last = 0;
+    let pendingText = "";
+    let shownText = "";
+    let rafId = null;
+    let last = 0;
 
-  function tick(t) {
-    if (!last) last = t;
-    const dt = t - last;
+    function tick(t) {
+      if (!last) last = t;
+      const dt = t - last;
 
-    if (dt >= speedMs) {
-      last = t;
+      if (dt >= speedMs) {
+        last = t;
 
-      // reveal a few chars per tick (looks smoother than 1 char)
-      const step = Math.min(3, pendingText.length);
-      if (step > 0) {
-        shownText += pendingText.slice(0, step);
-        pendingText = pendingText.slice(step);
-        el.textContent = shownText;
+        // reveal a few chars per tick (looks smoother than 1 char)
+        const step = Math.min(3, pendingText.length);
+        if (step > 0) {
+          shownText += pendingText.slice(0, step);
+          pendingText = pendingText.slice(step);
+          el.textContent = shownText;
+        }
       }
+
+      if (pendingText.length > 0) rafId = requestAnimationFrame(tick);
+      else rafId = null;
     }
 
-    if (pendingText.length > 0) rafId = requestAnimationFrame(tick);
-    else rafId = null;
+    return {
+      pushText(txt) {
+        if (!txt) return;
+        pendingText += txt;
+        if (!rafId) rafId = requestAnimationFrame(tick);
+      },
+      stop() {
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = null;
+      },
+      getShown() { return shownText; }
+    };
   }
-
-  return {
-    pushText(txt) {
-      if (!txt) return;
-      pendingText += txt;
-      if (!rafId) rafId = requestAnimationFrame(tick);
-    },
-    stop() {
-      if (rafId) cancelAnimationFrame(rafId);
-      rafId = null;
-    },
-    getShown() { return shownText; }
-  };
-}
-
 
   function rememberFirst(kind, value){
     try {
@@ -136,12 +135,121 @@ document.addEventListener("DOMContentLoaded", () => {
   // Glass footer wrapper (class, not id)
   const chatFooter = document.querySelector(".chat-footer");
 
-// Data seeds
-//const projDataEl   = document.getElementById("projects-data");
-const skillsDataEl = document.querySelector('script#skills-logos[type="application/json"]')
-                    || document.getElementById("skills-logos");
+    /* =========================================================
+     Scroll-to-bottom button (WINDOW scroll version)
+     - Your chat page scrolls the window (not chatStream)
+     - Shows ONLY when user is not near the bottom
+     - Click scrolls to bottom of the page
+     - Function name MUST be: scrollChattoBottom
+     ========================================================= */
 
-if (!askBox || !askInput || !askSend) return;
+  function scrollChattoBottom() {
+    // Smooth scroll the WINDOW to the bottom of the page
+    window.scrollTo({
+      top: document.documentElement.scrollHeight,
+      behavior: "smooth",
+    });
+  }
+
+  // ✅ UPDATED: define once (top-level), so enterChatMode/askStream/etc can call it
+  function updateScrollBtnBottom() {
+    const footer = document.getElementById("chat-footer");
+
+    // fallback when footer isn't present/visible yet
+    if (!footer || footer.hidden) {
+      document.documentElement.style.setProperty("--scroll-btn-bottom", "220px");
+      return;
+    }
+
+    const rect = footer.getBoundingClientRect();
+    const gap = 22; // your preferred spacing
+
+    // how much space footer takes from the bottom of the viewport
+    const footerFromBottom = window.innerHeight - rect.top;
+
+    const bottom = Math.max(12, footerFromBottom + gap);
+
+    document.documentElement.style.setProperty("--scroll-btn-bottom", `${bottom}px`);
+  }
+
+  // ✅ UPDATED: init guard so we don't attach duplicate listeners
+  let scrollBtnInited = false;
+
+  function initScrollToBottomButton() {
+    // Only run on chat page
+    if (!onChatPage) return;
+    if (scrollBtnInited) return;
+    scrollBtnInited = true;
+
+    const btn = document.getElementById("scrollToBottomBtn");
+    if (!btn) {
+      // If you don’t add the HTML button, nothing can work
+      console.warn("scroll btn: #scrollToBottomBtn not found in HTML");
+      return;
+    }
+
+    // run often enough to stay correct
+    window.addEventListener("resize", updateScrollBtnBottom);
+    window.addEventListener("scroll", updateScrollBtnBottom, { passive: true });
+
+    // if your footer animates in, update after animation ends
+    document.getElementById("chat-footer")?.addEventListener("animationend", updateScrollBtnBottom);
+
+    // keep in sync if footer changes size
+    if (window.ResizeObserver) {
+      const footer = document.getElementById("chat-footer");
+      if (footer) {
+        const ro = new ResizeObserver(updateScrollBtnBottom);
+        ro.observe(footer);
+      }
+    }
+
+    // call once on load
+    updateScrollBtnBottom();
+
+    // Click handler
+    btn.addEventListener("click", scrollChattoBottom);
+
+    // -----------------------------
+    // Show button only when NOT near bottom
+    // -----------------------------
+    function isNearBottom() {
+      // How far the user is from the bottom of the page
+      const scrollBottom = window.scrollY + window.innerHeight;
+      const pageBottom = document.documentElement.scrollHeight;
+      const distanceFromBottom = pageBottom - scrollBottom;
+
+      // Hide button when within 120px of bottom
+      return distanceFromBottom < 120;
+    }
+
+    function updateButton() {
+      btn.classList.toggle("show", !isNearBottom());
+    }
+
+    // Update when user scrolls the page
+    window.addEventListener("scroll", updateButton, { passive: true });
+
+    // Update when new chat bubbles get appended (page height changes)
+    const chatStreamEl = document.getElementById("chat-stream");
+    if (chatStreamEl) {
+      const obs = new MutationObserver(() => {
+        updateButton();
+        updateScrollBtnBottom();
+      });
+      obs.observe(chatStreamEl, { childList: true, subtree: true });
+    }
+
+    // Initial state
+    updateButton();
+  }
+
+  // Data seeds
+  //const projDataEl   = document.getElementById("projects-data");
+  const skillsDataEl = document.querySelector('script#skills-logos[type="application/json"]')
+                      || document.getElementById("skills-logos");
+
+  if (!askBox || !askInput || !askSend) return;
 
   // -------- Navigation to chat --------
   function navigateToChat(section, q) {
@@ -153,29 +261,79 @@ if (!askBox || !askInput || !askSend) return;
     window.location.href = u.toString();
   }
 
-// -------- Initial landing state --------
-if (!onChatPage) {
-  body.classList.remove("chat-mode");
-  tilesWrap?.classList.remove("docked", "tiles-compact");
-  askHolder?.classList.remove("docked");
+  // -------- Initial landing state --------
+  if (!onChatPage) {
+    body.classList.remove("chat-mode");
+    tilesWrap?.classList.remove("docked", "tiles-compact");
+    askHolder?.classList.remove("docked");
 
-  if (chat) {
-    chat.style.display = "none";
-  }
-  if (chatFooter) chatFooter.hidden = true;
+    if (chat) {
+      chat.style.display = "none";
+    }
+    if (chatFooter) chatFooter.hidden = true;
 
-  // leaving chat context -> forget any stored starter
-  clearFirst();
+    // leaving chat context -> forget any stored starter
+    clearFirst();
 
-  // 🔥 trigger hero + tiles entrance animation on landing
-// inside DOMContentLoaded, inside the home-page condition
+    // trigger hero + tiles entrance animation on landing
+    document.body.classList.add("hero-animate");
+
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        document.body.classList.add("hero-animate");
+        document.body.classList.add("start");
       });
     });
 
-}
+    // ✨ Landing-only rotating hints
+    const input = document.querySelector(".ask-box input, .ask-box textarea");
+
+    if (input) {
+      const phrases = [
+        "Ask about projects...",
+        "What backend tools do you use?",
+        "How was this portfolio built?",
+        "What languages do you code in?"
+      ];
+
+      let phraseIndex = 0;
+      let charIndex = 0;
+      let isDeleting = false;
+      let stopped = false;
+      let timerId = null;
+
+      function typeLoop() {
+        if (stopped) return;
+
+        const current = phrases[phraseIndex];
+
+        if (!isDeleting) {
+          input.placeholder = current.substring(0, charIndex++);
+          if (charIndex > current.length) {
+            setTimeout(() => isDeleting = true, 900);
+          }
+        } else {
+          input.placeholder = current.substring(0, charIndex--);
+          if (charIndex < 0) {
+            isDeleting = false;
+            phraseIndex = (phraseIndex + 1) % phrases.length;
+          }
+        }
+
+        const speed = isDeleting ? 35 : 55; // slower = premium
+        setTimeout(typeLoop, speed);
+      }
+
+      typeLoop();
+
+      function stopTyping() {
+        stopped = true;
+        input.placeholder = "Ask me anything...";
+      }
+
+        input.addEventListener("focus", stopTyping, { once: true });
+        input.addEventListener("input", stopTyping, { once: true });
+    }
+  }
 
   // -------- State --------
   let inChatMode = false;
@@ -203,15 +361,15 @@ if (!onChatPage) {
   const YES_RE = /\b(yes|yeah|yep|sure|ok|okay|y|affirmative)\b/i;
   const NO_RE  = /\b(no|nah|nope|n)\b/i;
 
-function microReply(html, delay = 350){
-  // quick typing animation for short follow-ups
-  const t = addTypingBubble();
-  setTimeout(() => {
-    try { t?.remove(); } catch {}
-    addAiBubble(html);
-    if (!__suppressScroll) scrollToBottom();
-  }, delay);
-}
+  function microReply(html, delay = 350){
+    // quick typing animation for short follow-ups
+    const t = addTypingBubble();
+    setTimeout(() => {
+      try { t?.remove(); } catch {}
+      addAiBubble(html);
+      if (!__suppressScroll) scrollToBottom();
+    }, delay);
+  }
 
   // ---------- Tiny phrasing engine (per-page memory) ----------
   const lastVariantIndex = {};     // key -> last index used
@@ -264,12 +422,12 @@ function microReply(html, delay = 350){
 
   // -------- 🔕 scroll controller --------
   let __suppressScroll = false;      // when true, ignore any scroll-to-bottom calls
-function temporarilySuppressScroll(ms = 450) {
-  __suppressScroll = true;
-  setTimeout(() => {
-    __suppressScroll = false;
-  }, ms);
-}
+  function temporarilySuppressScroll(ms = 450) {
+    __suppressScroll = true;
+    setTimeout(() => {
+      __suppressScroll = false;
+    }, ms);
+  }
 
   // Smooth scroll so an element sits near the top (accounts for sticky headers)
   function scrollToBubbleTop(el, offset = 72){
@@ -280,57 +438,55 @@ function temporarilySuppressScroll(ms = 450) {
   }
 
   // -------- Utilities --------
-function scrollToBottom(force = false) {
-  // If force === true, ignore the suppression flag
-  if (!force && __suppressScroll) return;
+  function scrollToBottom(force = false) {
+    // If force === true, ignore the suppression flag
+    if (!force && __suppressScroll) return;
 
-  const stream = document.getElementById("chat-stream");
-  if (!stream) return;
+    const stream = document.getElementById("chat-stream");
+    if (!stream) return;
 
-  requestAnimationFrame(() => {
-    window.scrollTo({
-      top: document.body.scrollHeight,
-      behavior: "smooth"
+    requestAnimationFrame(() => {
+      window.scrollTo({
+        top: document.body.scrollHeight,
+        behavior: "smooth"
+      });
     });
-  });
-}
-
+  }
 
   function scrollBubbleToTop(el, extraOffset = 96) {
-  if (!el) return;
+    if (!el) return;
 
-  const header = document.querySelector(".mini-header");
-  const headerHeight = header ? header.offsetHeight : 0;
+    const header = document.querySelector(".mini-header");
+    const headerHeight = header ? header.offsetHeight : 0;
 
-  const rect = el.getBoundingClientRect();
-  const targetY = window.scrollY + rect.top - headerHeight - extraOffset;
+    const rect = el.getBoundingClientRect();
+    const targetY = window.scrollY + rect.top - headerHeight - extraOffset;
 
-  window.scrollTo({
-    top: Math.max(0, targetY),
-    behavior: "smooth",
-  });
-}
-
+    window.scrollTo({
+      top: Math.max(0, targetY),
+      behavior: "smooth",
+    });
+  }
 
   function markChatStarted() { tilesWrap?.classList.add("tiles-compact"); }
 
   // -------- Docking helpers (disabled when glass footer is active) --------
-function setDocked(on) {
-  if (!tilesWrap || !askHolder || !chatStream) return; // ⬅️ add chatStream check
-  if (body.classList.contains("using-chat-footer")) on = false;
+  function setDocked(on) {
+    if (!tilesWrap || !askHolder || !chatStream) return; // ⬅️ add chatStream check
+    if (body.classList.contains("using-chat-footer")) on = false;
 
-  if (on) {
-    tilesWrap.classList.add("docked");
-    askHolder.classList.add("docked");
-    startDockLoop();
-  } else {
-    tilesWrap.classList.remove("docked");
-    askHolder.classList.remove("docked");
-    stopDockLoop();
-    tilesWrap.style.bottom = "";
-    chatStream.style.paddingBottom = "";
+    if (on) {
+      tilesWrap.classList.add("docked");
+      askHolder.classList.add("docked");
+      startDockLoop();
+    } else {
+      tilesWrap.classList.remove("docked");
+      askHolder.classList.remove("docked");
+      stopDockLoop();
+      tilesWrap.style.bottom = "";
+      chatStream.style.paddingBottom = "";
+    }
   }
-}
 
   function startDockLoop() {
     if (dockingOn || body.classList.contains("using-chat-footer")) return;
@@ -434,8 +590,8 @@ function setDocked(on) {
 
     // Use the unified glass footer for tiles + ask
     enableGlassFooter();
-
     markChatStarted();
+    updateScrollBtnBottom();
   }
 
   function moveAskBoxBelowTiles() {
@@ -465,34 +621,32 @@ function setDocked(on) {
     if (!__suppressScroll) scrollToBottom();
   }
 
-// Add this function (modify your existing addTypingBubble if needed)
-function addTypingBubble() {
-  if (!onChatPage) return null;
-  const b = document.createElement("div");
-  b.className = "bubble typing";
-  b.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
-  chatStream.appendChild(b);
-  markChatStarted();
-  if (!__suppressScroll) scrollToBottom();
-  return b;
-}
+  // Add this function (modify your existing addTypingBubble if needed)
+  function addTypingBubble() {
+    if (!onChatPage) return null;
+    const b = document.createElement("div");
+    b.className = "bubble typing";
+    b.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+    chatStream.appendChild(b);
+    markChatStarted();
+    if (!__suppressScroll) scrollToBottom();
+    return b;
+  }
 
+  function addAiBubble(html = "") {
+    if (!onChatPage) return null;
+    const b = document.createElement("div");
+    b.className = "bubble ai";
+    // let CSS control width
+    b.innerHTML = html;
+    chatStream.appendChild(b);
+    markChatStarted();
 
-function addAiBubble(html = "") {
-  if (!onChatPage) return null;
-  const b = document.createElement("div");
-  b.className = "bubble ai";
-  // let CSS control width
-  b.innerHTML = html;
-  chatStream.appendChild(b);
-  markChatStarted();
+    // ❌ no auto-scroll here – AI bubbles should not move the viewport
+    // If you ever want special cases later, you can add checks here.
 
-  // ❌ no auto-scroll here – AI bubbles should not move the viewport
-  // If you ever want special cases later, you can add checks here.
-
-  return b;
-}
-
+    return b;
+  }
 
   function focusAsk() { if (onChatPage) try { askInput.focus(); } catch(_) {} }
 
@@ -587,13 +741,12 @@ function addAiBubble(html = "") {
   // ===================================================================
   // PROJECTS — gallery bubble + modal (FLIP)
   // ===================================================================
-function getProjectsFromDOM() {
-  const el = document.getElementById("projects-data");
-  if (!el) return [];
-  try { return JSON.parse(el.textContent || "[]"); }
-  catch { return []; }
-}
-
+  function getProjectsFromDOM() {
+    const el = document.getElementById("projects-data");
+    if (!el) return [];
+    try { return JSON.parse(el.textContent || "[]"); }
+    catch { return []; }
+  }
 
   function projectCardHTML(p) {
     const img   = (p.image || "/static/project-default.jpg");
@@ -673,7 +826,7 @@ function getProjectsFromDOM() {
     modal.querySelector(".pm-image").alt           = project.title || "Project image";
     modal.querySelector(".pm-desc").innerHTML      = project.desc ? `<p>${project.desc}</p>` : "";
 
-        // NEW — build gallery section inside modal
+    // NEW — build gallery section inside modal
     const galleryHTML = gallery.length
       ? gallery.map(img => `<img class="pm-gallery-img" src="${img}">`).join("")
       : "";
@@ -821,7 +974,6 @@ function getProjectsFromDOM() {
           openProjectModalFromCard(card, p);
         });
 
-
         resolve(bubble);
       }, 180);
     });
@@ -846,163 +998,169 @@ function getProjectsFromDOM() {
     } catch { return []; }
   }
 
-function skillsGridHTML(names) {
-  if (!names.length) {
-    return `<p>No skills logos found. Put a JSON array in <code>#skills-logos</code> and PNGs in <code>/static/images/skills/</code>.</p>`;
-  }
+  function skillsGridHTML(names) {
+    if (!names.length) {
+      return `<p>No skills logos found. Put a JSON array in <code>#skills-logos</code> and PNGs in <code>/static/images/skills/</code>.</p>`;
+    }
 
-  // --- logo cells (same as before) ---
-  const logoCells = names.map((name) => {
-    const file  = String(name).trim();
-    const src   = `/static/images/skills/${file}.png`;
-    const label = file.replace(/[-_]/g, " ");
+    // --- logo cells (same as before) ---
+    const logoCells = names.map((name) => {
+      const file  = String(name).trim();
+      const src   = `/static/images/skills/${file}.png`;
+      const label = file.replace(/[-_]/g, " ");
+      return `
+        <div class="skills-item" title="${label}">
+          <img src="${src}" alt="${label}" loading="lazy"
+               onerror="this.style.opacity=0.3; this.title='Missing: ${file}.png'">
+          <div class="skills-caption">${label}</div>
+        </div>
+      `;
+    }).join("");
+
+    // --- full skills bubble: title + logos + chips ---
     return `
-      <div class="skills-item" title="${label}">
-        <img src="${src}" alt="${label}" loading="lazy"
-             onerror="this.style.opacity=0.3; this.title='Missing: ${file}.png'">
-        <div class="skills-caption">${label}</div>
+      <div class="skills-wrap">
+
+        <h2 class="skills-expertise-title">Skills &amp; Expertise</h2>
+
+        <!-- logo row -->
+        <div class="skills-logo-row">
+          <div class="skills-grid">
+            ${logoCells}
+          </div>
+        </div>
+
+        <!-- chip groups -->
+        <div class="skills-expertise">
+
+          <div class="skills-expertise-group">
+            <div class="skills-expertise-heading">
+              <span class="skills-expertise-icon">💫</span>
+              <span>Frontend &amp; Product Experience</span>
+            </div>
+            <div class="skills-expertise-chips">
+              <span class="skills-chip">Responsive UI (HTML, CSS, JS)</span>
+              <span class="skills-chip">Modern component layouts</span>
+              <span class="skills-chip">User experience design</span>
+              <span class="skills-chip">Clean, readable interfaces</span>
+            </div>
+          </div>
+
+          <div class="skills-expertise-group">
+            <div class="skills-expertise-heading">
+              <span class="skills-expertise-icon">⚙️</span>
+              <span>Backend, APIs &amp; Databases</span>
+            </div>
+            <div class="skills-expertise-chips">
+                <span class="skills-chip">API design & routing architecture</span>
+                <span class="skills-chip">Authentication & role-based access</span>
+                <span class="skills-chip">Session management & state handling</span>
+                <span class="skills-chip">Firestore data modeling</span>
+                <span class="skills-chip">Deployment with Gunicorn & VPS</span>
+                <span class="skills-chip">Environment configuration & production setup</span>
+            </div>
+          </div>
+
+          <div class="skills-expertise-group">
+            <div class="skills-expertise-heading">
+              <span class="skills-expertise-icon">📱</span>
+              <span>Mobile Development</span>
+            </div>
+            <div class="skills-expertise-chips">
+              <span class="skills-chip">Android Studio (Java)</span>
+              <span class="skills-chip">Flutter UI design</span>
+              <span class="skills-chip">Location &amp; Map integrations</span>
+            </div>
+          </div>
+
+          <div class="skills-expertise-group">
+            <div class="skills-expertise-heading">
+              <span class="skills-expertise-icon">🧠</span>
+              <span>Data, ML &amp; AI</span>
+            </div>
+            <div class="skills-expertise-chips">
+                <span class="skills-chip">Intent classification & confidence gating</span>
+                <span class="skills-chip">Retrieval-first architecture (TF-IDF + cosine similarity)</span>
+                <span class="skills-chip">Session-aware conversational systems</span>
+                <span class="skills-chip">YAML-driven knowledge base design</span>
+                <span class="skills-chip">Feature engineering & text preprocessing</span>
+                <span class="skills-chip">Model evaluation & accuracy tuning</span>
+            </div>
+          </div>
+
+          <div class="skills-expertise-group">
+            <div class="skills-expertise-heading">
+              <span class="skills-expertise-icon">🤝</span>
+              <span>Leadership &amp; Collaboration</span>
+            </div>
+            <div class="skills-expertise-chips">
+                <span class="skills-chip">Assistant Manager experience</span>
+                <span class="skills-chip">Technical team leadership (hackathons)</span>
+                <span class="skills-chip">Cross-functional collaboration</span>
+                <span class="skills-chip">Agile teamwork & sprint planning</span>
+                <span class="skills-chip">Project coordination & task delegation</span>
+                <span class="skills-chip">Client & stakeholder communication</span>
+            </div>
+          </div>
+
+          <!-- Certifications -->
+          <div class="skills-expertise-group">
+            <div class="skills-expertise-heading">
+              <span class="skills-expertise-icon">📜</span>
+              <span>Certifications</span>
+            </div>
+
+            <div class="skills-certs-row">
+              <!-- One card per certification -->
+              <div class="skills-cert-card">
+                <img src="/static/images/skills/nasa.png" alt="Galactic Problem Solver - Certificate of Participation">
+              </div>
+
+              <div class="skills-cert-card">
+                <img src="/static/images/skills/Acres.png" alt="Certificate of Participation – Acres Industry Innovation Competition">
+              </div>
+
+              <div class="skills-cert-card">
+                <img src="/static/images/skills/Google.png" alt="Introduction to Generative AI">
+              </div>
+              <div class="skills-cert-card">
+                <img src="/static/images/skills/Suzanne.png" alt="Certified Customer Service Representative (CCSR)">
+              </div>
+            </div>
+          </div>
+
+        </div>
       </div>
     `;
-  }).join("");
+  }
 
-  // --- full skills bubble: title + logos + chips ---
-  return `
-    <div class="skills-wrap">
+  function initCertLightbox() {
+    // We'll treat "mobile" as <= 700px wide
+    const mq = window.matchMedia("(max-width: 700px)");
 
-      <h2 class="skills-expertise-title">Skills &amp; Expertise</h2>
+    document.addEventListener("click", (e) => {
+      // Only do this on small screens
+      if (!mq.matches) return;
 
-      <!-- logo row -->
-      <div class="skills-logo-row">
-        <div class="skills-grid">
-          ${logoCells}
-        </div>
-      </div>
+      const img = e.target.closest(".skills-cert-card img");
+      if (!img) return;
 
-      <!-- chip groups -->
-      <div class="skills-expertise">
+      const src = img.getAttribute("src");
+      if (!src) return;
 
-        <div class="skills-expertise-group">
-          <div class="skills-expertise-heading">
-            <span class="skills-expertise-icon">💫</span>
-            <span>Frontend &amp; Product Experience</span>
-          </div>
-          <div class="skills-expertise-chips">
-            <span class="skills-chip">Responsive UI (HTML, CSS, JS)</span>
-            <span class="skills-chip">Modern component layouts</span>
-            <span class="skills-chip">User experience design</span>
-            <span class="skills-chip">Clean, readable interfaces</span>
-          </div>
-        </div>
+      // Create overlay
+      const overlay = document.createElement("div");
+      overlay.className = "skills-cert-lightbox";
+      overlay.innerHTML = `<img src="${src}" alt="Certification">`;
 
-        <div class="skills-expertise-group">
-          <div class="skills-expertise-heading">
-            <span class="skills-expertise-icon">⚙️</span>
-            <span>Backend, APIs &amp; Databases</span>
-          </div>
-          <div class="skills-expertise-chips">
-            <span class="skills-chip">Flask / FastAPI development</span>
-            <span class="skills-chip">REST API integration</span>
-            <span class="skills-chip">SQLite / MySQL</span>
-            <span class="skills-chip">Firebase Auth &amp; Firestore</span>
-          </div>
-        </div>
+      // Tap anywhere to close
+      overlay.addEventListener("click", () => {
+        overlay.remove();
+      });
 
-        <div class="skills-expertise-group">
-          <div class="skills-expertise-heading">
-            <span class="skills-expertise-icon">📱</span>
-            <span>Mobile Development</span>
-          </div>
-          <div class="skills-expertise-chips">
-            <span class="skills-chip">Android Studio (Java)</span>
-            <span class="skills-chip">Flutter UI design</span>
-            <span class="skills-chip">Location &amp; Map integrations</span>
-          </div>
-        </div>
-
-        <div class="skills-expertise-group">
-          <div class="skills-expertise-heading">
-            <span class="skills-expertise-icon">🧠</span>
-            <span>Data, ML &amp; AI</span>
-          </div>
-          <div class="skills-expertise-chips">
-            <span class="skills-chip">Python data stack (NumPy, Pandas)</span>
-            <span class="skills-chip">ML pipelines (TF-IDF, Logistic Regression)</span>
-            <span class="skills-chip">AI-powered portfolio assistant</span>
-          </div>
-        </div>
-
-        <div class="skills-expertise-group">
-          <div class="skills-expertise-heading">
-            <span class="skills-expertise-icon">🤝</span>
-            <span>Leadership &amp; Collaboration</span>
-          </div>
-          <div class="skills-expertise-chips">
-            <span class="skills-chip">Leadership role</span>
-            <span class="skills-chip">Team projects &amp; hackathons</span>
-            <span class="skills-chip">Planning &amp; scheduling</span>
-          </div>
-        </div>
-
-              <!-- Certifications -->
-      <div class="skills-expertise-group">
-        <div class="skills-expertise-heading">
-          <span class="skills-expertise-icon">📜</span>
-          <span>Certifications</span>
-        </div>
-
-        <div class="skills-certs-row">
-          <!-- One card per certification -->
-          <div class="skills-cert-card">
-            <img src="/static/images/skills/nasa.png" alt="Galactic Problem Solver - Certificate of Participation">
-          </div>
-
-          <div class="skills-cert-card">
-            <img src="/static/images/skills/Acres.png" alt="Certificate of Participation – Acres Industry Innovation Competition">
-          </div>
-
-          <div class="skills-cert-card">
-            <img src="/static/images/skills/Google.png" alt="Introduction to Generative AI">
-          </div>
-          <div class="skills-cert-card">
-            <img src="/static/images/skills/Suzanne.png" alt="Certified Customer Service Representative (CCSR)">
-          </div>
-        </div>
-      </div>
-
-      </div>
-    </div>
-  `;
-}
-
-function initCertLightbox() {
-  // We'll treat "mobile" as <= 700px wide
-  const mq = window.matchMedia("(max-width: 700px)");
-
-  document.addEventListener("click", (e) => {
-    // Only do this on small screens
-    if (!mq.matches) return;
-
-    const img = e.target.closest(".skills-cert-card img");
-    if (!img) return;
-
-    const src = img.getAttribute("src");
-    if (!src) return;
-
-    // Create overlay
-    const overlay = document.createElement("div");
-    overlay.className = "skills-cert-lightbox";
-    overlay.innerHTML = `<img src="${src}" alt="Certification">`;
-
-    // Tap anywhere to close
-    overlay.addEventListener("click", () => {
-      overlay.remove();
+      document.body.appendChild(overlay);
     });
-
-    document.body.appendChild(overlay);
-  });
-}
-
-
+  }
 
   function showSkillsInChat(fromTile = false) {
     return new Promise((resolve) => {
@@ -1091,18 +1249,18 @@ function initCertLightbox() {
   // ===================================================================
   // RENDER-ONCE helper with rotating follow-ups
   // ===================================================================
-async function ensureOnce(selector, renderAsync, followupKey){
-  const existing = chatStream.querySelector(selector);
-  if (existing) {
-    // ✅ no little sayings on repeat clicks
-    requestAnimationFrame(() => scrollToBubbleTop(existing));
-    return existing;
+  async function ensureOnce(selector, renderAsync, followupKey){
+    const existing = chatStream.querySelector(selector);
+    if (existing) {
+      // ✅ no little sayings on repeat clicks
+      requestAnimationFrame(() => scrollToBubbleTop(existing));
+      return existing;
+    }
+    const el = await renderAsync();
+    if (selector.startsWith(".")) el?.classList?.add(selector.slice(1));
+    markSeenFromEl(el);
+    return el;
   }
-  const el = await renderAsync();
-  if (selector.startsWith(".")) el?.classList?.add(selector.slice(1));
-  markSeenFromEl(el);
-  return el;
-}
 
   // ===================================================================
   // Streaming chat (freeform) — server routes; client renders once
@@ -1122,21 +1280,48 @@ async function ensureOnce(selector, renderAsync, followupKey){
 
     enterChatMode();
     moveAskBoxBelowTiles();
+    updateScrollBtnBottom();
     addUserBubble(q);
 
+    // ---------- Universal praise / compliment handling (runs BEFORE section triggers) ----------
+    const PRAISE_WORDS_RE =
+      /\b(amazing|awesome|great|nice|cool|impressive|love|lovely|beautiful|clean|smart|talented|well done|good job|slay|fire)\b/i;
+
+    // Only count as a question if it has "?" OR starts like a question.
+    const STARTS_LIKE_QUESTION_RE =
+      /^\s*(what|why|how|where|when|can|could|would|will|do|does|did|is|are)\b/i;
+
+    const isQuestion = /\?/.test(q) || STARTS_LIKE_QUESTION_RE.test(ql);
+
+    // Make sure it's praise about YOU/your work (skills/projects/about/portfolio/etc.)
+    const TARGET_RE =
+      /\b(portfolio|site|website|projects?|skills?|experience|work|design|ui|ux|resume|cv|about|you|your|ur|u)\b/i;
+
+    const isPraise = PRAISE_WORDS_RE.test(ql) && TARGET_RE.test(ql) && !isQuestion;
+
+    if (isPraise) {
+      const replies = [
+        "Aww thank you 🥹 that honestly means a lot!",
+        "Thank youuu! 🧡 I really appreciate that.",
+        "Thanks, that made my day 😄",
+        "Omg thank you! If you want, ask about any project or skill and I’ll break it down.",
+      ];
+      microReply(replies[Math.floor(Math.random() * replies.length)]);
+      __askInflight = false;
+      return;
+    }
+
     // ---- local intents / follow-ups (no server call) ----
+    const isGreeting = /\b(hi|hello|hey|hiya|morning|evening)\b/.test(ql);
     const asksIdentity = /\b(what\s*are\s*you|what\s*r\s*u|are\s*you\s*a\s*bot|who\s*(made|built)\s*you|who\s*are\s*you|who\s*r\s*u)\b/.test(ql);
     const asksAbout =
-      // greetings still count
-      /\b(hi|hello|hey|hiya|morning|evening)\b/.test(ql) ||
-
       // only treat "about" as ABOUT ME when it's clearly about you
       /\b(about\s+(you|yourself|kareena)|introduce\s+yourself|your\s+bio|profile\s+summary)\b/.test(ql) ||
-
-      // also handle short “about” style prompts
       (ql === "about" || ql === "about me");
     const asksProjects = /\b(project|projects)\b/.test(ql);
-    const asksSkills   = /\b(skill|skills|framework|frameworks)\b/.test(ql);
+    const asksSkills =
+      /^(skills|skill|show skills|show me skills|list skills|your skills)$/.test(ql) ||
+      /\b(show|list|see|open)\b.*\b(skills?)\b/.test(ql);
     const asksContact  = /\b(contact|reach|email|e-?mail|linkedin|link\s*edin|connect)\b/.test(ql);
 
     // quick yes/no response to the last micro prompt
@@ -1254,7 +1439,6 @@ async function ensureOnce(selector, renderAsync, followupKey){
 
         typer?.pushText(plainChunk);
 
-
         if (!__suppressScroll) scrollToBottom();
 
         // Server placeholders -> render once
@@ -1291,15 +1475,15 @@ async function ensureOnce(selector, renderAsync, followupKey){
 
       // stream finished: swap in final formatted HTML once
       try { typing?.remove(); } catch {}
-    if (ai) {
-      typer?.stop();
-      ai.classList.remove("streaming");
+      if (ai) {
+        typer?.stop();
+        ai.classList.remove("streaming");
 
-      requestAnimationFrame(() => {
-        ai.innerHTML = buffer;
-        if (!__suppressScroll) scrollToBottom();
-      });
-    }
+        requestAnimationFrame(() => {
+          ai.innerHTML = buffer;
+          if (!__suppressScroll) scrollToBottom();
+        });
+      }
 
     } catch (e) {
       const fb = await fallbackChat(q);
@@ -1309,7 +1493,6 @@ async function ensureOnce(selector, renderAsync, followupKey){
       __askInflight = false;
     }
   }
-
 
   async function fallbackChat(question) {
     try {
@@ -1339,10 +1522,9 @@ async function ensureOnce(selector, renderAsync, followupKey){
         return "";
       }
 
-      // Guard: never allow blank html
-      if (!html.trim()) {
-        return "<p>Hi! I’m <strong>Kareena’s AI assistant</strong> 🤖 — created by Kareena to answer questions about her skills, projects, and how to contact her.</p>";
-      }
+        if (!html.trim()) {
+          return "<p>Sorry, I couldn’t find a good answer for that. Try asking about my projects, skills, or contact info.</p>";
+        }
 
       return html;
     } catch {
@@ -1350,267 +1532,185 @@ async function ensureOnce(selector, renderAsync, followupKey){
     }
   }
 
-// ===================================================================
-// Tile actions (ONLY tiles)
-// ===================================================================
-tiles.forEach((btn) => {
-  btn.addEventListener("click", async () => {
-    hidePortfolioNotice();
-    const section = btn.getAttribute("data-section");
-    if (!section) return;
+  // ===================================================================
+  // Tile actions (ONLY tiles)
+  // ===================================================================
+  tiles.forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      hidePortfolioNotice();
+      const section = btn.getAttribute("data-section");
+      if (!section) return;
 
-    // From landing → navigate to chat
-    if (!onChatPage) {
-      navigateToChat(section);
-      return;
-    }
+      // From landing → navigate to chat
+      if (!onChatPage) {
+        navigateToChat(section);
+        return;
+      }
 
-    // Already on chat page
-    const title = section.charAt(0).toUpperCase() + section.slice(1);
-    setFeatureHeader(title);
-    enterChatMode();
-    moveAskBoxBelowTiles();
+      // Already on chat page
+      const title = section.charAt(0).toUpperCase() + section.slice(1);
+      setFeatureHeader(title);
+      enterChatMode();
+      moveAskBoxBelowTiles();
+      updateScrollBtnBottom();
 
-    rememberFirst("section", section);
-    temporarilySuppressScroll();
+      rememberFirst("section", section);
+      temporarilySuppressScroll();
 
-    let el = null;
-    if (section === "projects") el = await ensureOnce(".projects-gallery", () => showProjectsInChat(true), "projects_hint");
-    else if (section === "skills") el = await ensureOnce(".skills-wrap", () => showSkillsInChat(true), "skills_hint");
-    else if (section === "me") el = await ensureOnce(".about-wrap", () => showAboutInChat(true), "about_follow");
-    else if (section === "contact") el = await ensureOnce(".contact-wrap", () => showContactInChat(true), "contact_hint");
+      let el = null;
+      if (section === "projects") el = await ensureOnce(".projects-gallery", () => showProjectsInChat(true), "projects_hint");
+      else if (section === "skills") el = await ensureOnce(".skills-wrap", () => showSkillsInChat(true), "skills_hint");
+      else if (section === "me") el = await ensureOnce(".about-wrap", () => showAboutInChat(true), "about_follow");
+      else if (section === "contact") el = await ensureOnce(".contact-wrap", () => showContactInChat(true), "contact_hint");
 
-    if (el) requestAnimationFrame(() => scrollToBubbleTop(el));
-    focusAsk();
+      if (el) requestAnimationFrame(() => scrollToBubbleTop(el));
+      focusAsk();
+    });
   });
-});
 
+  // ===================================================================
+  // Ask box
+  // ===================================================================
 
+  // Landing-only helper
+  function goToChatWithIntro() {
+    const u = new URL(window.location.href);
+    u.pathname = "/";
+    u.searchParams.set("chat", "1");
+    u.searchParams.set("intro", "1");
+    window.location.href = u.toString();
+  }
 
-// ===================================================================
-// Ask box
-// ===================================================================
-
-// Landing-only helper
-function goToChatWithIntro() {
-  const u = new URL(window.location.href);
-  u.pathname = "/";
-  u.searchParams.set("chat", "1");
-  u.searchParams.set("intro", "1");
-  window.location.href = u.toString();
-}
-
-// Landing-only: focusing/clicking ask input jumps to chat (intro)
+  // Landing-only: focusing/clicking ask input jumps to chat (intro)
 if (!onChatPage) {
+  function goToChatWithIntro(e) {
+    // ✅ clear instantly before navigation
+    try {
+      askInput.value = "";
+      askInput.placeholder = "";
+      askInput.blur();
+    } catch {}
+
+    const u = new URL(window.location.href);
+    u.pathname = "/";
+    u.searchParams.set("chat", "1");
+    u.searchParams.set("intro", "1");
+    window.location.href = u.toString();
+  }
+
   askInput.addEventListener("focus", goToChatWithIntro, { once: true });
   askInput.addEventListener("click", goToChatWithIntro, { once: true });
 }
 
-// Works on BOTH landing + chat
-function submitAsk() {
-  hidePortfolioNotice();
-  const q = (askInput.value || "").trim();
-  if (!q) return;
+  // Works on BOTH landing + chat
+  function submitAsk() {
+    hidePortfolioNotice();
+    const q = (askInput.value || "").trim();
+    if (!q) return;
 
-  // Landing → go to chat, carry q in URL
-  if (!onChatPage) {
-    navigateToChat(null, q);
-    return;
+    // Landing → go to chat, carry q in URL
+    if (!onChatPage) {
+      navigateToChat(null, q);
+      return;
+    }
+
+    // Chat → send normally
+    askInput.value = "";
+    rememberFirst("q", q);
+    askStream(q);
   }
 
-  // Chat → send normally
-  askInput.value = "";
-  rememberFirst("q", q);
-  askStream(q);
-}
+  askSend.addEventListener("click", submitAsk);
+    askInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        submitAsk();
+      }
+    });
 
-askSend.addEventListener("click", submitAsk);
-askInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") submitAsk();
-});
+  function showPortfolioNoticeOnce() {
+    if (document.querySelector(".portfolio-notice")) return;
 
-
-function showPortfolioNoticeOnce() {
-  if (document.querySelector(".portfolio-notice")) return;
-
-  const wrap = document.createElement("div");
-  wrap.className = "portfolio-notice";
-  wrap.innerHTML = `
-    <div class="chat-notice">
-      <div class="chat-notice-title">Portfolio Assistant</div>
-      <div class="chat-notice-text">
-        This assistant is designed to answer questions about <b>Kareena Zaman’s</b> portfolio —
-        projects, skills, experience, and contact info.
-        Try: <b>“What backend tools do you use?”</b> or <b>“Show your projects.”</b>
+    const wrap = document.createElement("div");
+    wrap.className = "portfolio-notice";
+    wrap.innerHTML = `
+      <div class="chat-notice">
+        <div class="chat-notice-title">Portfolio Assistant</div>
+        <div class="chat-notice-text">
+          This assistant is designed to answer questions about <b>Kareena Zaman’s</b> portfolio —
+          projects, skills, experience, and contact info.
+          Try: <b>“What backend tools do you use?”</b> or <b>“Show your projects.”</b>
+        </div>
       </div>
-    </div>
-  `;
-  chatStream.prepend(wrap);
-}
-
-function hidePortfolioNotice() {
-  const notice = document.querySelector(".portfolio-notice");
-  if (!notice || notice.classList.contains("fade-out")) return;
-
-  notice.classList.add("fade-out");
-
-  // remove from DOM after animation
-  setTimeout(() => notice.remove(), 420);
-}
-
-
-// ===================================================================
-// Seeded section on /?chat=1
-// ===================================================================
-if (onChatPage) {
-  const seed     = qp.get(SECTION_Q);       // "me", "projects", "skills", "contact"
-  const prefillQ = (qp.get("q") || "").trim();
-
-  enterChatMode();
-  moveAskBoxBelowTiles();
-  initScrollToBottomButton();
-
-  if (qp.get("intro") === "1") {
-    showPortfolioNoticeOnce();
-    try {
-      const cleaned = new URL(window.location.href);
-      cleaned.searchParams.delete("intro");
-      window.history.replaceState({}, "", cleaned.toString());
-    } catch {}
+    `;
+    chatStream.prepend(wrap);
   }
 
-  if (prefillQ) {
-    rememberFirst("q", prefillQ);
-    temporarilySuppressScroll();
-    askStream(prefillQ);
+  function hidePortfolioNotice() {
+    const notice = document.querySelector(".portfolio-notice");
+    if (!notice || notice.classList.contains("fade-out")) return;
 
-    try {
-      const cleaned = new URL(window.location.href);
-      cleaned.searchParams.delete("q");
-      window.history.replaceState({}, "", cleaned.toString());
-    } catch {}
+    notice.classList.add("fade-out");
+
+    // remove from DOM after animation
+    setTimeout(() => notice.remove(), 420);
+  }
+
+  // ===================================================================
+  // Seeded section on /?chat=1
+  // ===================================================================
+  if (onChatPage) {
+    const seed     = qp.get(SECTION_Q);       // "me", "projects", "skills", "contact"
+    const prefillQ = (qp.get("q") || "").trim();
+
+    enterChatMode();
+    moveAskBoxBelowTiles();
+    initScrollToBottomButton();
+    updateScrollBtnBottom();
+
+    if (qp.get("intro") === "1") {
+      showPortfolioNoticeOnce();
+      try {
+        const cleaned = new URL(window.location.href);
+        cleaned.searchParams.delete("intro");
+        window.history.replaceState({}, "", cleaned.toString());
+      } catch {}
+    }
+
+    if (prefillQ) {
+      rememberFirst("q", prefillQ);
+      temporarilySuppressScroll();
+      askStream(prefillQ);
+
+      try {
+        const cleaned = new URL(window.location.href);
+        cleaned.searchParams.delete("q");
+        window.history.replaceState({}, "", cleaned.toString());
+      } catch {}
+      focusAsk();
+      return;
+    }
+
+    if (seed) {
+      rememberFirst("section", seed);
+      const title = seed.charAt(0).toUpperCase() + seed.slice(1);
+      setFeatureHeader(title);
+      temporarilySuppressScroll();
+
+      if (seed === "projects") showProjectsInChat(true);
+      else if (seed === "skills") showSkillsInChat(true);
+      else if (seed === "me") showAboutInChat(true);
+      else if (seed === "contact") showContactInChat(true);
+
+      focusAsk();
+      return;
+    }
+
+    if (replayFirstIfAny()) {
+      focusAsk();
+      return;
+    }
+
     focusAsk();
-    return;
   }
-
-  if (seed) {
-    rememberFirst("section", seed);
-    const title = seed.charAt(0).toUpperCase() + seed.slice(1);
-    setFeatureHeader(title);
-    temporarilySuppressScroll();
-
-    if (seed === "projects") showProjectsInChat(true);
-    else if (seed === "skills") showSkillsInChat(true);
-    else if (seed === "me") showAboutInChat(true);
-    else if (seed === "contact") showContactInChat(true);
-
-    focusAsk();
-    return;
-  }
-
-  if (replayFirstIfAny()) {
-    focusAsk();
-    return;
-  }
-
-  focusAsk();
-}
-/* =========================================================
-   Scroll-to-bottom button (WINDOW scroll version)
-   - Your chat page scrolls the window (not chatStream)
-   - Shows ONLY when user is not near the bottom
-   - Click scrolls to bottom of the page
-   - Function name MUST be: scrollChattoBottom
-   ========================================================= */
-
-function scrollChattoBottom() {
-  // Smooth scroll the WINDOW to the bottom of the page
-  window.scrollTo({
-    top: document.documentElement.scrollHeight,
-    behavior: "smooth",
-  });
-}
-
-function initScrollToBottomButton() {
-  // Only run on chat page
-  if (typeof onChatPage !== "undefined" && !onChatPage) return;
-
-  const btn = document.getElementById("scrollToBottomBtn");
-  if (!btn) {
-    // If you don’t add the HTML button, nothing can work
-    console.warn("scroll btn: #scrollToBottomBtn not found in HTML");
-    return;
-  }
-
-  // -----------------------------
-  // Keep button ABOVE the glass footer with a nice gap
-  // -----------------------------
-function syncButtonAboveFooter() {
-  const footer = document.getElementById("chat-footer");
-
-  let footerH = 0;
-  if (footer && !footer.hidden) {
-    footerH = footer.getBoundingClientRect().height;
-  }
-
-  const gap = 22;
-
-  document.documentElement.style.setProperty(
-    "--scroll-btn-bottom",
-    `${footerH + gap}px`
-  );
-}
-
-// Run AFTER layout settles
-requestAnimationFrame(syncButtonAboveFooter);
-setTimeout(syncButtonAboveFooter, 0);
-setTimeout(syncButtonAboveFooter, 250);
-
-window.addEventListener("resize", syncButtonAboveFooter, { passive: true });
-
-if (window.ResizeObserver) {
-  const footer = document.getElementById("chat-footer");
-  if (footer) {
-    const ro = new ResizeObserver(syncButtonAboveFooter);
-    ro.observe(footer);
-  }
-}
-
-
-  // Click handler
-  btn.addEventListener("click", scrollChattoBottom);
-
-  // -----------------------------
-  // Show button only when NOT near bottom
-  // -----------------------------
-  function isNearBottom() {
-    // How far the user is from the bottom of the page
-    const scrollBottom = window.scrollY + window.innerHeight;
-    const pageBottom = document.documentElement.scrollHeight;
-    const distanceFromBottom = pageBottom - scrollBottom;
-
-    // Hide button when within 120px of bottom
-    return distanceFromBottom < 120;
-  }
-
-  function updateButton() {
-    btn.classList.toggle("show", !isNearBottom());
-  }
-
-  // Update when user scrolls the page
-  window.addEventListener("scroll", updateButton, { passive: true });
-
-  // Update when new chat bubbles get appended (page height changes)
-  const chatStreamEl = document.getElementById("chat-stream");
-  if (chatStreamEl) {
-    const obs = new MutationObserver(() => updateButton());
-    obs.observe(chatStreamEl, { childList: true, subtree: true });
-  }
-
-  // Initial state
-  updateButton();
-}
-});   // ⬅️ close DOMContentLoaded
-
-
-
+});

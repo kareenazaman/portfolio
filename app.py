@@ -11,6 +11,8 @@ from pathlib import Path
 import os, json, yaml, html, time, random
 from typing import List, Dict, Any
 import re
+from autocorrect import Speller
+spell = Speller(lang='en')
 
 # ML deps
 import joblib
@@ -23,11 +25,10 @@ from prompts import (
     JUDGMENT_ANSWERS
 )
 
-
-# ---------- Paths / Flask --------
+# ---------- Paths / Flask ----------
 BASE_DIR = Path(__file__).resolve().parent
 
-# ---------- TF-IDF cache paths --------
+# ---------- TF-IDF cache paths ----------
 INDEX_DIR = BASE_DIR / "models"
 VEC_PATH  = INDEX_DIR / "tfidf_vectorizer.joblib"
 MAT_PATH  = INDEX_DIR / "tfidf_doc_mat.joblib"
@@ -39,14 +40,23 @@ app = Flask(
     static_folder=str(BASE_DIR / "static"),
 )
 
+# In production, I set FLASK_SECRET_KEY in the hosting environment.
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-change-me")
 
 
+def auto_align_words(text):
+    shorthand = {
+        "u": "you", "r": "are", "ur": "your", "urself": "yourself",
+        "abt": "about", "pls": "please", "thx": "thanks", "ty": "thank you"
+    }
+    words = text.lower().split()
+    return " ".join([shorthand.get(w, w) for w in words])
 
 # ============================================================
 # Data helpers (YAML / Markdown)
 # ============================================================
 def _safe_yaml(path: Path, default):
+    """Loads YAML safely and always returns a predictable default."""
     if not path.exists():
         return default
     with path.open("r", encoding="utf-8") as f:
@@ -55,6 +65,11 @@ def _safe_yaml(path: Path, default):
 
 
 def load_yaml(filename: str):
+    """
+    Loads data from /data.
+    - skills.yml is a dict grouped by category
+    - most other files are lists
+    """
     p = BASE_DIR / "data" / filename
     if filename.endswith("skills.yml"):
         return _safe_yaml(p, {})
@@ -62,10 +77,15 @@ def load_yaml(filename: str):
 
 
 def load_kb_markdown() -> List[Dict[str, Any]]:
+    """
+    Loads kb/*.md into retrieval chunks.
+    Each markdown file becomes one searchable document.
+    """
     kb_dir = BASE_DIR / "kb"
     chunks: List[Dict[str, Any]] = []
     if not kb_dir.exists():
         return chunks
+
     for md_file in kb_dir.glob("*.md"):
         try:
             text = md_file.read_text(encoding="utf-8").strip()
@@ -78,20 +98,31 @@ def load_kb_markdown() -> List[Dict[str, Any]]:
 
 
 def normalize_projects_to_text(proj: Dict[str, Any]) -> str:
+    """Turns a project YAML entry into one retrieval-friendly paragraph."""
     title = proj.get("title", "")
     desc = proj.get("desc", "")
     stack = ", ".join((proj.get("stack", []) or []))
     links = proj.get("links", {}) or {}
     gh = links.get("github", "")
     dm = links.get("demo", "")
+
     parts = [f"Project: {title}. {desc}"]
-    if stack: parts.append(f"Stack: {stack}.")
-    if gh: parts.append(f"github = {gh}")
-    if dm: parts.append(f"demo = {dm}")
+    if stack:
+        parts.append(f"Stack: {stack}.")
+    if gh:
+        parts.append(f"github = {gh}")
+    if dm:
+        parts.append(f"demo = {dm}")
     return " ".join(p for p in parts if p).strip()
 
 
 def build_corpus_from_portfolio() -> List[Dict[str, Any]]:
+    """
+    Builds the retrieval corpus from:
+    - kb markdown files
+    - projects.yml
+    - skills.yml (split into chunks by category)
+    """
     corpus: List[Dict[str, Any]] = []
 
     # Markdown knowledge
@@ -115,30 +146,51 @@ def build_corpus_from_portfolio() -> List[Dict[str, Any]]:
             if not items:
                 continue
 
+            # ✅ make sure every item becomes a string (handles dicts/lists safely)
+            safe_items = []
+            for it in (items if isinstance(items, list) else [items]):
+                if isinstance(it, str):
+                    safe_items.append(it)
+                elif isinstance(it, dict):
+                    # dict -> "key: value" lines (nice for YAML like {name: X, level: Y})
+                    for k, v in it.items():
+                        safe_items.append(f"{k}: {v}")
+                else:
+                    safe_items.append(str(it))
+
+            joined = ", ".join(safe_items)
             corpus.append({
                 "id": f"skills_{group.lower().replace(' ', '_')}",
                 "title": f"Skills — {group}",
-                "content": f"{group}\n- " + "\n- ".join(items)
+                "content": f"{group} skills, tools, frameworks, stack and technologies I use: {joined}."
             })
 
     return corpus
-
-
 
 
 # ============================================================
 # Smart handling for casual / off-topic / personality questions
 # ============================================================
 def handle_edge_case(question: str, qa_system=None) -> tuple[bool, str]:
+
     """
-    Handle small-talk / personality / semi-related questions in a friendly,
-    first-person way. Returns (handled, html_response).
+    Handles small-talk / personality / semi-related questions in a friendly,
+    first-person way.
+    Returns: (handled, html_response)
     """
     q_lower = (question or "").lower().strip()
 
-    from random import choice
+    # ---------- Greeting ----------
+    GREETING_PATTERNS = (
+        "hi", "hello", "hey", "hiya", "yo",
+        "good morning", "good afternoon", "good evening"
+    )
 
-    # ---------- 0.5) Smalltalk: "how are you" ----------
+    # exact greeting or starts-with greeting (handles: "hi", "hi!", "hey there")
+    if any(q_lower == g or q_lower.startswith(g + " ") for g in GREETING_PATTERNS):
+        return True, random.choice(RESPONSE_BANK["greeting"])
+
+    # ---------- Smalltalk: "how are you" ----------
     SMALLTALK_PATTERNS = (
         "how are you", "how r u", "how are u", "hru",
         "how's it going", "how is it going",
@@ -154,7 +206,7 @@ def handle_edge_case(question: str, qa_system=None) -> tuple[bool, str]:
     ]
 
     if any(p in q_lower for p in SMALLTALK_PATTERNS):
-        # avoid repeating the exact same smalltalk reply twice in a row
+        # Avoid repeating the same smalltalk reply twice in a row
         s = session.setdefault("pf", {})
         last = s.get("last_smalltalk")
         choices = [r for r in SMALLTALK_REPLIES if r != last] or SMALLTALK_REPLIES
@@ -163,16 +215,54 @@ def handle_edge_case(question: str, qa_system=None) -> tuple[bool, str]:
         session.modified = True
         return True, reply
 
-    # --- Smalltalk: acknowledgements ("ok", "okay", etc.) ---
-    ack_patterns = {
+    # --- Acknowledgements / reactions (including combos like "lol okay") ---
+
+    clean2 = q_lower.strip().strip("!?.,")
+
+    # Tokenize basic words + a few emojis
+    tokens = re.findall(r"[a-z']+|[😂🤣😭😆]", clean2)
+
+    # Normalize stretchy reactions
+    tokens = ["oh" if re.fullmatch(r"oh+", t) else t for t in tokens]
+    tokens = ["hmm" if re.fullmatch(r"hm+", t) else t for t in tokens]
+    token_set = set(tokens)
+
+    ACK_WORDS = {
         "ok", "okay", "k", "kk", "alright", "sure", "cool", "nice",
-        "sounds good", "got it", "yep", "ya", "yes"
+        "sounds", "good", "got", "it", "yep", "ya", "yes",
+        "oh", "okayyy", "okayy", "alr", "aight"
     }
 
-    clean = q_lower.strip()
-    clean2 = clean.strip("!?.,")
+    REACT_WORDS = {
+        "lol", "lmao", "lmfao", "haha", "hehe",
+        "ohh", "ohhh", "hmm", "huh", "ah", "aww"
+    }
+    REACT_EMOJIS = {"😂", "🤣", "😭", "😆"}
 
-    if clean2 in ack_patterns:
+    # "oh" / "oh okay" / "oh ok" style acknowledgement
+    if tokens and all(t in ACK_WORDS or t in REACT_WORDS for t in tokens) and "oh" in token_set:
+        last_intent = session.get("pf", {}).get("last_intent")
+
+        if last_intent == "projects":
+            msg = "Oh okay 😄 Want me to pick a best project to start with?"
+        elif last_intent == "skills":
+            msg = "Oh okay! Do you want my frontend, backend, or AI/ML skills?"
+        elif last_intent == "contact":
+            msg = "Oh okay — want my email, LinkedIn, or both?"
+        else:
+            msg = _pick_nonrepeating_session(
+                "smalltalk_oh",
+                [
+                    "Oh okay 😊 Want to explore Projects, Skills, or Contact?",
+                    "Ohhh got you 😄 What should we look at next?",
+                    "Oh okay! If you tell me what you're looking for, I’ll guide you.",
+                ],
+            )
+
+        return True, f"<p>{msg}</p>"
+
+    # Pure ack (single word)
+    if clean2 in {"ok", "okay", "k", "kk", "alright", "sure", "cool", "nice", "yep", "yes"}:
         msg = _pick_nonrepeating_session(
             "smalltalk_ack",
             [
@@ -184,29 +274,109 @@ def handle_edge_case(question: str, qa_system=None) -> tuple[bool, str]:
         )
         return True, f"<p>{msg}</p>"
 
-    reaction_patterns = {"lol", "Haha", "Hehe", "Lmao", "Lmfao", "😂", "🤣", "😭", "😆"}
-
-    if clean2 in reaction_patterns or any(e in q_lower for e in ("😂", "🤣", "😭", "😆")):
+    # Pure reaction (single word / emoji)
+    if (clean2 in REACT_WORDS) or (token_set & REACT_EMOJIS) or (clean2 in REACT_EMOJIS):
         msg = _pick_nonrepeating_session(
             "smalltalk_react",
             [
                 "😂 Haha",
-                "Haha",
-                "Hehe 😄",
+                "Haha 😄",
+                "Hehe 😌",
                 "lol glad that made you smile 😆",
-                "Hehe", "😁", "🤭"
+                "😁",
             ],
         )
         return True, f"<p>{msg}</p>"
 
-    # ---------- 0) Farewell ----------
+    # Mixed reaction+ack like "lol okay", "haha sure", "ok lol"
+    all_smalltalk = all(
+        (t in ACK_WORDS) or (t in REACT_WORDS) or (t in REACT_EMOJIS)
+        for t in tokens
+    )
+    has_ack = any(t in ACK_WORDS for t in tokens)
+    has_react = any((t in REACT_WORDS) or (t in REACT_EMOJIS) for t in tokens)
+
+    if tokens and all_smalltalk and (has_ack and has_react):
+        last_intent = session.get("pf", {}).get("last_intent")
+
+        if last_intent == "projects":
+            msg = "😂 Okay — want me to recommend a project to start with, or show the full list?"
+        elif last_intent == "skills":
+            msg = "Hehe 😄 Want frontend, backend, or AI/ML skills?"
+        elif last_intent == "contact":
+            msg = "Okay 😄 Want my email, LinkedIn, or both?"
+        else:
+            msg = _pick_nonrepeating_session(
+                "smalltalk_combo",
+                [
+                    "😂 Okay — what do you want to explore next?",
+                    "Hehe 😄 Want to see Projects, Skills, or Contact?",
+                    "lol okay 😄 Try: “show projects” or “what skills do you use?”",
+                ],
+            )
+
+        return True, f"<p>{msg}</p>"
+
+    # ---------- Declines / "no" / "lol no" ----------
+    NEG_WORDS = {"no", "nope", "nah", "na", "naw", "never"}
+    # tokens are already computed above in your code:
+
+    has_neg = any(t in NEG_WORDS for t in tokens)
+    all_simple = all(
+        (t in ACK_WORDS) or (t in REACT_WORDS) or (t in REACT_EMOJIS) or (t in NEG_WORDS) or (t == "thanks")
+        for t in tokens
+    )
+
+    if tokens and all_simple and has_neg:
+        last_intent = session.get("pf", {}).get("last_intent")
+
+        if last_intent == "projects":
+            msg = _pick_nonrepeating_session(
+                "decline_projects",
+                [
+                    "No worries 😄 Want to see my skills instead?",
+                    "All good! If projects aren’t what you need, I can share my skills or experience.",
+                    "Okay 😊 Would you like a quick skills summary instead?"
+                ],
+            )
+        elif last_intent == "skills":
+            msg = _pick_nonrepeating_session(
+                "decline_skills",
+                [
+                    "Got you 😄 Want to look at my projects instead?",
+                    "No problem! We can switch to projects or contact info.",
+                    "Okay 😊 What would you like to see instead — projects or contact?"
+                ],
+            )
+        elif last_intent == "contact":
+            msg = _pick_nonrepeating_session(
+                "decline_contact",
+                [
+                    "No worries 😊 Want to see projects or skills instead?",
+                    "All good! If you ever want to reach me later, it’s in the Contact section.",
+                    "Okay 😄 Want a quick overview of my projects instead?"
+                ],
+            )
+        else:
+            msg = _pick_nonrepeating_session(
+                "decline_generic",
+                [
+                    "lol fair 😄 What do you want to explore instead — Projects, Skills, or Contact?",
+                    "No worries 😊 Want me to show projects, skills, or experience?",
+                    "Okay 😄 Tell me what you’re looking for and I’ll point you to it."
+                ],
+            )
+
+        return True, f"<p>{msg}</p>"
+
+    # ---------- Farewell ----------
     if any(phrase == q_lower or phrase in q_lower for phrase in [
         "bye", "goodbye", "bye bye", "see you", "see you later",
         "talk to you later", "take care", "ttyl", "gotta go", "i have to go"
     ]):
         return True, random.choice(RESPONSE_BANK["farewell"])
 
-    # ---------- 1) "Who / what are you?" ----------
+    # ---------- "Who / what are you?" ----------
     if any(phrase in q_lower for phrase in [
         "who are you", "who r u", "who are u", "who r you",
         "what are you", "what r u", "what r you",
@@ -219,7 +389,7 @@ def handle_edge_case(question: str, qa_system=None) -> tuple[bool, str]:
         ]
         return True, random.choice(responses)
 
-    # ---------- 2) Location / where you live / where from ----------
+    # ---------- Location / where you live / where from ----------
     if any(phrase in q_lower for phrase in [
         "where do you live", "where do u live",
         "where are you from", "where r u from",
@@ -238,7 +408,6 @@ def handle_edge_case(question: str, qa_system=None) -> tuple[bool, str]:
                         "Most of my studying and projects are built around life here.</p>"
                     )
 
-        # Fallback if KB doesn’t mention it for some reason
         return True, (
             "<p>I’m based in Canada 🇨🇦</p>"
             "<p>If you want to know more, ask about my studies or projects.</p>"
@@ -261,10 +430,9 @@ def handle_edge_case(question: str, qa_system=None) -> tuple[bool, str]:
             "<p>I was born in Bangladesh 🇧🇩, and today I’m based in Kamloops, BC focusing on software and AI projects.</p>",
             "<p>Bangladesh is where I’m from originally 🇧🇩 — but Canada is where I’m currently studying and building my career in tech.</p>",
         ]
-
         return True, random.choice(responses)
 
-    # ---------- 3) “Are you Kareena?” ----------
+    # ---------- “Are you Kareena?” ----------
     if any(phrase in q_lower for phrase in [
         "are you kareena", "r u kareena", "are u kareena",
         "is this kareena", "is that kareena"
@@ -275,26 +443,25 @@ def handle_edge_case(question: str, qa_system=None) -> tuple[bool, str]:
         ]
         return True, random.choice(responses)
 
-    # --- Category: AI capability questions ---
+    # ---------- AI capability questions ----------
     if any(word in q_lower for word in [
-        "are you chatgpt", "are you ai", "real person", "human", "are u chatgpt", "r u chatgpt",
+        "are you chatgpt", "are you ai", "real person", "human", "are u chatgpt", "r u chatgpt", "are you chat gpt", "are u chat gpt","chatgpt?", "gpt?",
     ]):
         return True, (
             "<p>I’m Kareena’s AI assistant, created to help walk you through her professional experience and portfolio — and no, I’m not ChatGPT 😄</p>"
         )
 
-    # ---------- 4) Age questions ----------
-    if any(phrase in q_lower for phrase in [
-        "how old", "how old r u", "how old are you", "what's ur age", "what's your age",
-        "age", "age?", "your age?"
-    ]):
+    # ---------- Age questions ----------
+    AGE_RE = re.compile(r"\b(age|how old|what'?s (your|ur) age)\b", re.I)
+
+    if AGE_RE.search(q_lower):
         responses = [
             "<p>I don’t list my exact age here — this space is more about my skills, projects, and experience.</p>",
             "<p>Age isn’t really the focus of this portfolio. I’d rather show what I’ve actually built and learned.</p>",
         ]
         return True, random.choice(responses)
 
-    # ---------- 5) User correcting / referencing the bot ----------
+    # ---------- User correcting / referencing the bot ----------
     if any(phrase in q_lower for phrase in [
         "you said", "you just said", "it says", "didn't you", "didnt you",
         "but you", "you told me", "you were saying"
@@ -305,23 +472,20 @@ def handle_edge_case(question: str, qa_system=None) -> tuple[bool, str]:
         ]
         return True, random.choice(responses)
 
-    # ---------- 6) Rude / negative comments ----------
+    # ---------- Rude / negative comments ----------
     if any(word in q_lower for word in [
         "stupid", "dumb", "useless", "annoying", "hate you", "hate u",
         "bad bot", "you suck", "u suck", "rude", "mean", "idiot"
     ]):
         responses = [
-            "<p>Ouch 😂 I’m just here trying to help you explore my professional work. Let me know what you’d like to find out.</p>",
-            "<p>Harsh, but noted 😅 I’m here to help you learn more about my professional experience — what were you looking for?</p>",
-            "<p>Okay, that one stung a bit 😂 Is there something specific about my professional life you wanted to see?</p>",
-            "<p>Got it 😄 I’m just trying to help showcase my work — tell me what you’d like to know.</p>",
-            "<p>No worries 😅 If there’s anything you’d like to find out about my background or projects, I can help with that.</p>",
-            "<p>Feedback received 😂 I’m here to help you explore my skills and experience — what can I show you?</p>",
-            "<p>I promise I’m trying to be helpful 😄 What would you like to know about my professional journey?</p>"
+            "<p>Let’s keep it respectful 😊 I’m happy to help with questions about my projects, skills, or experience.</p>",
+            "<p>😅 I’m doing my best — if something didn’t make sense, tell me what you meant and I’ll answer clearly.</p>",
+            "<p>Please keep it respectful 😊 What would you like to know — projects, skills, education, or contact info?</p>",
+            "<p>Fair 😄 If you’re testing me, try: “show projects” or “what tech stack do you use?”</p>",
         ]
         return True, random.choice(responses)
 
-    # ---------- 7) Inappropriate language ----------
+    # ---------- Inappropriate language ----------
     if any(word in q_lower for word in [
         "fuck", "fucking", "shit", "bitch", "asshole",
         "bastard", "wtf", "stfu", "slut", "shut the fuck up", "disgusting"
@@ -332,15 +496,14 @@ def handle_edge_case(question: str, qa_system=None) -> tuple[bool, str]:
             "<p>Please keep things professional. I’m happy to help if you’d like to explore my portfolio.</p>",
             "<p>I’m here to discuss my professional background and work — let’s keep it appropriate.</p>",
             "<p>If you have questions about my skills, experience, or projects, I’d be glad to help.</p>",
-            "<p>I’m designed to assist with information about my professional life. Let’s keep the discussion respectful.</p>"
+            "<p>I’m designed to assist with information about my professional life. Let’s keep the discussion respectful.</p>",
             "<p>I'm sorry that's a bit inappropriate to say to someone.</p>"
         ]
         return True, random.choice(responses)
 
-    # ---------- 7A) Thanks / gratitude ----------
-    tokens = re.findall(r"[a-z']+", q_lower)  # words only
+    # ---------- Thanks / gratitude ----------
+    tokens = re.findall(r"[a-z']+", q_lower)
     token_set = set(tokens)
-
     THANKS_WORDS = {"thanks", "thanx", "thank", "ty", "tysm"}
 
     if ("thank" in token_set) or (token_set & THANKS_WORDS) or ("thank you" in q_lower) or ("thank u" in q_lower):
@@ -351,7 +514,7 @@ def handle_edge_case(question: str, qa_system=None) -> tuple[bool, str]:
         ]
         return True, random.choice(responses)
 
-    # ---------- 7B) "You're funny" / playful compliments ----------
+    # ---------- "You're funny" / playful compliments ----------
     FUNNY_PATTERNS = (
         "you are funny", "you're funny", "youre funny",
         "u r funny", "ur funny", "u funny", "funny lol"
@@ -368,14 +531,35 @@ def handle_edge_case(question: str, qa_system=None) -> tuple[bool, str]:
         )
         return True, f"<p>{msg}</p>"
 
-    # ---------- 7) Compliments / positive reactions ----------
-    q_norm = " ".join((q_lower or "").split())  # collapse multiple spaces
+    # ---------- "How did you learn / self-taught" ----------
+    # Put this near the top so it runs before any other returns.
+
+    learn_re = re.search(r"\b(how|where|when)\b.*\blearn(ed)?\b", q_lower)
+    self_taught_re = re.search(r"\bself[-\s]?taught\b|\bteach yourself\b|\bon your own\b", q_lower)
+
+    mentions_skill_topic = any(w in q_lower for w in [
+        "python", "java", "programming", "coding", "code", "skills", "developer"
+    ])
+
+    if (learn_re and mentions_skill_topic) or self_taught_re:
+        msg = _pick_nonrepeating_session(
+            "skills_learning",
+            [
+                "Mostly hands-on. University gave me the foundation, and then projects + tutorials + documentation is where my skills really leveled up.",
+                "A mix of university + self-learning. I learn best by building real projects, breaking things, and fixing them 😄",
+                "I learned through CS courses and a lot of self-teaching — projects, YouTube, official docs, and experimenting until it works.",
+            ],
+        )
+        return True, f"<p>{msg}</p>"
+
+    # ---------- Compliments / positive reactions ----------
+    q_norm = " ".join((q_lower or "").split())
 
     is_question = (
-            "?" in q_norm or
-            q_norm.startswith(("are ", "is ", "do ", "did ", "can ", "could ", "would ", "will ",
-                               "what ", "why ", "how ", "where ", "when ")) or
-            q_norm.startswith(("r u ", "r you ", "r ur "))
+        "?" in q_norm or
+        q_norm.startswith(("are ", "is ", "do ", "did ", "can ", "could ", "would ", "will ",
+                           "what ", "why ", "how ", "where ", "when ")) or
+        q_norm.startswith(("r u ", "r you ", "r ur "))
     )
 
     if (not is_question) and any(word in q_norm for word in [
@@ -413,42 +597,34 @@ def handle_edge_case(question: str, qa_system=None) -> tuple[bool, str]:
             "<p>Yep — I can share my resume, I just don’t post it online 😊</p>"
             "<p>Please email <a href='mailto:kareenazaman@gmail.com'>kareenazaman@gmail.com</a> and I’ll send it over.</p>",
         ]
-
         return True, random.choice(responses)
 
-    # ---------- Nothing matched ----------
     return False, ""
-
 
 
 def get_smart_refusal(question: str) -> str:
     """
-    Friendly fallback when a question is outside the portfolio scope.
-    Always tries edge-cases first so rude/compliment/location/etc.
-    never fall back to a boring generic line.
+    Friendly fallback when a question is outside portfolio scope.
+    Edge-cases are checked first so rude/compliment/location/etc. don't fall through.
     """
-    # First, let edge-cases take a shot
     handled, edge_html = handle_edge_case(question, qa_system=None)
     if handled:
         return edge_html
 
     q_lower = (question or "").lower()
 
-    # --- Category: general info (weather / news / stocks / sports) ---
     if any(word in q_lower for word in ["weather", "time", "news", "stock", "stocks", "sports", "score"]):
         return (
             "<p>I’m only set up to talk about my portfolio, not live data like weather, time, news, or stock prices.</p>"
             "<p>If you want, I can walk you through my projects, tech stack, or studies instead.</p>"
         )
 
-    # --- Category: jokes / games / entertainment ---
     if any(word in q_lower for word in ["joke", "story", "game", "play", "bored"]):
         return (
             "<p>I’m more of a “show you my work” bot than an entertainment bot 😄</p>"
             "<p>But if you’d like something interesting, I can explain one of my projects in detail.</p>"
         )
 
-    # --- Category: random preferences (movies / food / music / etc.) ---
     if any(word in q_lower for word in ["movie", "food", "music", "song", "book", "restaurant", "drink", "colour", "color"]):
         return (
             "<p>I don’t really keep personal favourites in this portfolio.</p>"
@@ -456,12 +632,10 @@ def get_smart_refusal(question: str) -> str:
             "<p>This space is mainly about what I build, the tools I use, and what I’m learning.</p>"
         )
 
-    # --- Generic fallback ---
     return (
         "<p>I’m not really sure how to answer that here 😅</p>"
         "<p> But I can definitely talk about my projects, skills, education, and experience if you’d like.</p>"
     )
-
 
 
 # ============================================================
@@ -487,7 +661,8 @@ RESPONSE_BANK = {
             ),
         ],
         "repeat": [
-            ""
+            "<p>Still the same Kareena! 😄 Want me to dive deeper into my background or studies?</p>",
+            "<p>I'm still me! Do you want to hear more about my long-term goals or my experience?</p>"
         ],
     },
 
@@ -498,7 +673,8 @@ RESPONSE_BANK = {
             "<p>These are the main things I’ve built recently:</p><div class='projects-gallery'></div>",
         ],
         "repeat": [
-            ""
+            "<p>I can show you the projects list again if you'd like!</p><div class='projects-gallery'></div>",
+            "<p>Still want to talk projects? Here they are:</p><div class='projects-gallery'></div>"
         ],
     },
 
@@ -509,7 +685,7 @@ RESPONSE_BANK = {
             "<p>These are the languages and frameworks I’m most comfortable with:</p><div class='skills-wrap'></div>",
         ],
         "repeat": [
-            ""
+            "<p>Here is my tech stack again!</p><div class='skills-wrap'></div>",
         ],
     },
 
@@ -527,18 +703,14 @@ RESPONSE_BANK = {
             ),
         ],
         "repeat": [
-            ""
+            "<p>Here is my info again: <a href='mailto:kareenazaman@gmail.com'>kareenazaman@gmail.com</a></p>",
         ],
     },
 
     "identity": {
         "first": [
-            (
-                "<p>I’m Kareena in AI form 🤖 I talk in first person, but everything I say is based on my real projects, skills, and experience.</p>"
-            ),
-            (
-                "<p>Think of me as a digital version of Kareena — here to guide you through my work, studies, and what I build.</p>"
-            ),
+            "<p>I’m Kareena in AI form 🤖 I talk in first person, but everything I say is based on my real projects, skills, and experience.</p>",
+            "<p>Think of me as a digital version of Kareena — here to guide you through my work, studies, and what I build.</p>",
         ],
         "repeat": [
             "<p>Still me — Kareena’s AI self. What would you like to explore next?</p>",
@@ -547,7 +719,6 @@ RESPONSE_BANK = {
         ],
     },
 
-    # NEW: more specific intents powered by your ML model
     "personal": {
         "first": [
             (
@@ -576,7 +747,6 @@ RESPONSE_BANK = {
         ],
     },
 
-    # 🔹 NEW: origin intent
     "origin": {
         "first": [
             (
@@ -593,7 +763,6 @@ RESPONSE_BANK = {
             "<p>Still Bangladeshi at heart, just studying in Canada now 💻🇨🇦</p>",
         ],
     },
-
 
     "study": {
         "first": [
@@ -659,10 +828,10 @@ RESPONSE_BANK = {
     },
 
     "greeting": [
-        "<p>Hey! 👋 I’m Kareena. Want to explore my projects, skills, or get a quick intro?</p>",
-        "<p>Hi! I’m Kareena. You can ask about my projects, what I study, or what I’ve built.</p>",
-        "<p>Hello! We can talk about my work, my tech stack, or my journey in CS — you choose.</p>",
-        "<p>Welcome! I’m Kareena. Where should we start — projects, skills, or a quick overview?</p>",
+        "<p>Hey! 👋 I’m Kareena. Want to explore my projects, skills, or learn a bit about me?</p>",
+        "<p>Hi! I’m Kareena 👋 You can ask about my projects, what I study, or what I’ve built.</p>",
+        "<p>Hello! I'm Kareena 👋 We can talk about my work, my tech stack, or a lil bit about me — you choose.</p>",
+        "<p>Hi and welcome! I’m Kareena. Where should we start? 😃</p>",
     ],
 
     "farewell": [
@@ -670,19 +839,15 @@ RESPONSE_BANK = {
         "<p>Glad we could chat! If you want to continue the conversation, my email and LinkedIn are open.</p>",
         "<p>Thanks for visiting 🧡 Hope you found what you were looking for.</p>",
         "<p>Appreciate you checking out my work! Don’t hesitate to reach out if something caught your interest.</p>",
-        "<p>See you later! 👋</p>", "<p>Thanks for stopping by — have a great day!</p>",
+        "<p>See you later! 👋</p>",
+        "<p>Thanks for stopping by — have a great day!</p>",
     ],
 }
 
 
-
-
-
 def get_response(intent: str, is_repeat: bool, last_intent: str = None) -> str:
-    """Get varied, contextual response with randomization"""
-
+    """Returns a varied response based on intent + whether it's already been shown."""
     if intent == "followup":
-        # Check if we have contextual follow-up
         if last_intent and last_intent in RESPONSE_BANK["followup"]["contextual"]:
             return random.choice(RESPONSE_BANK["followup"]["contextual"][last_intent])
         return random.choice(RESPONSE_BANK["followup"]["generic"])
@@ -693,9 +858,8 @@ def get_response(intent: str, is_repeat: bool, last_intent: str = None) -> str:
     if intent == "farewell" and not is_repeat:
         return random.choice(RESPONSE_BANK["farewell"])
 
-    # For other intents, check first vs repeat
     if intent not in RESPONSE_BANK:
-        return get_smart_refusal("")  # Fallback
+        return get_smart_refusal("")
 
     responses = RESPONSE_BANK[intent]
     key = "repeat" if is_repeat else "first"
@@ -711,11 +875,12 @@ IN_SCOPE_KEYWORDS = (
     "aqi", "smoke", "wildfire", "nasa", "tempo", "about", "github", "linkedin",
     "python", "java", "javascript", "built", "developed", "work", "tech",
     "bc", "british columbia", "canada", "kamloops", "location", "where", "based",
-    "bangladesh", "bd"   # 🔹 NEW
+    "bangladesh", "bd"
 )
 
 
 def _pick_nonrepeating_session(key: str, options: list[str]) -> str:
+    """Same reply variety idea, but stored at the root session key."""
     last = session.get(key)
     pool = [o for o in options if o != last] or options
     out = random.choice(pool)
@@ -723,34 +888,28 @@ def _pick_nonrepeating_session(key: str, options: list[str]) -> str:
     session.modified = True
     return out
 
+
 def format_text_to_html(text: str) -> str:
     if not text:
         return ""
 
     t = str(text).replace("\r\n", "\n").replace("\r", "\n").strip()
 
-    # --- Turn inline separators into real bullet lines ---
-    # 1) " ... - Heading"  -> "\n- Heading"
+    # Turn inline separators into bullet lines
     t = re.sub(r"\s-\s+(?=[A-Z])", "\n- ", t)
-
-    # 2) "React-Heading" or "CSS- Heading" -> "\n- Heading"
-    #    (no space before '-', optional spaces after)
     t = re.sub(r"(?<=\S)-\s*(?=[A-Z])", "\n- ", t)
 
-    # --- Split into lines ---
     lines = [ln.strip() for ln in t.split("\n") if ln.strip()]
 
     html_parts = []
     lis = []
 
     for line in lines:
-        # **bold**
         line = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", line)
 
         if line.startswith("- "):
             lis.append(f"<li>{line[2:].strip()}</li>")
         else:
-            # Treat "Backend:" / "Frontend:" like headings
             if re.match(r"^[A-Za-z][A-Za-z &/]+:\s*$", line):
                 html_parts.append(f"<div class='ai-section-title'>{line[:-1].strip()}</div>")
             else:
@@ -762,11 +921,8 @@ def format_text_to_html(text: str) -> str:
     return "".join(html_parts)
 
 
-
 class KareenaQA:
-
     def __init__(self, corpus_items: List[Dict[str, Any]], thresh: float = 0.28) -> None:
-
         self.thresh = thresh
         self.docs = corpus_items[:]
         self.project_docs = []
@@ -776,10 +932,10 @@ class KareenaQA:
             title = (d.get("title") or "").strip()
             if not title:
                 continue
-            # your projects use id like project_0, project_1...
             if str(d.get("id", "")).startswith("project_"):
                 self.project_docs.append(d)
                 self.project_title_map[title.lower()] = d
+
         self._build_index()
 
     def _build_index(self):
@@ -796,8 +952,10 @@ class KareenaQA:
         # Otherwise build and save
         self.corpus_texts = [d["content"] for d in self.docs] or ["(empty)"]
         self.vectorizer = TfidfVectorizer(
-            lowercase=True, stop_words="english",
-            ngram_range=(1, 2), min_df=1
+            analyzer='char_wb',
+            ngram_range=(3, 5),
+            lowercase=True,
+            min_df=1
         )
         self.doc_mat = self.vectorizer.fit_transform(self.corpus_texts)
 
@@ -807,7 +965,15 @@ class KareenaQA:
 
     def reload(self):
         self.docs = build_corpus_from_portfolio()
-        # force rebuild: delete cache first (or just rebuild and overwrite)
+
+        # 🔥 force rebuild: delete cached index files
+        for p in (VEC_PATH, MAT_PATH, DOCS_PATH):
+            try:
+                if p.exists():
+                    p.unlink()
+            except Exception:
+                pass
+
         self._build_index()
 
     def _in_scope(self, q: str) -> bool:
@@ -819,12 +985,31 @@ class KareenaQA:
         if not query:
             return {"ok": False, "html": "<p>Please type a question.</p>"}
 
-        # Check edge cases first (pass self for retrieval access)
+        # Edge cases first (pass self for KB access where needed)
         handled, edge_response = handle_edge_case(query, qa_system=self)
         if handled:
             return {"ok": True, "html": edge_response}
 
         ql = query.lower()
+
+        # Force common "tech stack" questions to prefer skills chunks
+        if any(w in ql for w in
+               ("backend", "frontend", "tech stack", "stack", "tools", "framework", "database", "api")):
+            best_sk = None
+            best_sk_score = -1.0
+
+            qv = self.vectorizer.transform([query])
+            sims = cosine_similarity(qv, self.doc_mat)[0]
+
+            for i, d in enumerate(self.docs):
+                if str(d.get("id", "")).startswith("skills_"):
+                    s = float(sims[i])
+                    if s > best_sk_score:
+                        best_sk_score = s
+                        best_sk = d
+
+            if best_sk and best_sk_score >= 0.08:  # lower mini-threshold just for skills
+                return {"ok": True, "html": format_text_to_html(best_sk["content"])}
 
         triggers = ("tell me more about", "tell me about", "more about", "explain", "describe", "details on")
         proj_q = None
@@ -834,15 +1019,15 @@ class KareenaQA:
                 break
 
         if proj_q:
-            # exact match
             if proj_q in self.project_title_map:
                 d = self.project_title_map[proj_q]
                 return {"ok": True, "html": format_text_to_html(d["content"])}
 
-            # loose match (handles “site guardian” vs “siteguardian”)
             pq = proj_q.replace(" ", "")
             for title_l, d in self.project_title_map.items():
-                if pq == title_l.replace(" ", "") or proj_q in title_l:
+                # FIX: Require the search term to be at least 3 characters long
+                # before doing a loose substring match!
+                if pq == title_l.replace(" ", "") or (len(proj_q) >= 3 and proj_q in title_l):
                     return {"ok": True, "html": format_text_to_html(d["content"])}
 
         # Recruiter / employer prompts (rotate answers)
@@ -856,7 +1041,6 @@ class KareenaQA:
             if any(p in ql for p in patterns):
                 msg = _pick_nonrepeating_session(f"judge_{key}", JUDGMENT_ANSWERS[key])
                 return {"ok": True, "html": f"<p>{msg}</p>"}
-
 
         qv = self.vectorizer.transform([query])
         sims = cosine_similarity(qv, self.doc_mat)[0]
@@ -872,9 +1056,7 @@ class KareenaQA:
         )[:top_k]
 
         content = ranked[0]["doc"]["content"]
-        ql = query.lower()
 
-        # Try to return only the relevant section
         def extract_section(text: str, header: str) -> str:
             lines = text.splitlines()
             out = []
@@ -892,7 +1074,6 @@ class KareenaQA:
             return "\n".join(out).strip()
 
         # Section-aware responses
-
         if "build" in ql:
             section = extract_section(content, "What I Build")
             if section:
@@ -903,36 +1084,13 @@ class KareenaQA:
             if section:
                 return {"ok": True, "html": format_text_to_html(section)}
 
-        # Fallback: first paragraph only (no markdown dump)
+        # Fallback: first paragraph only
         first_para = content.split("\n\n")[0]
         return {"ok": True, "html": format_text_to_html(first_para)}
 
-        # Format naturally
-        intros = [
-            "Here's what I found: ",
-            "Let me tell you about that: ",
-            "Great question! ",
-            "From what I know: ",
-        ]
-        intro = random.choice(intros)
-        safe = html.escape(text).replace("\n", "<br>")
-
-        outros = [
-            "<br><br>Want to know more?",
-            "<br><br>Curious about something else?",
-            "<br><br>Any other questions?",
-        ]
-        outro = random.choice(outros) if len(text) < 300 else ""
-
-        return {
-            "ok": True,
-            "html": f"<p>{intro}{safe}{outro}</p>",
-            "sources": [r["doc"]["id"] for r in ranked]
-        }
-
 
 # Initialize retrieval
-qa = KareenaQA(build_corpus_from_portfolio(), thresh=0.09)
+qa = KareenaQA(build_corpus_from_portfolio(), thresh=0.15)
 
 # ============================================================
 # Intent classifier + session memory
@@ -943,11 +1101,12 @@ try:
     INTENT_PIPE = joblib.load(INTENT_MODEL_PATH)
 except FileNotFoundError:
     print(f"WARNING: intent model missing at {INTENT_MODEL_PATH} — running without ML intent model.")
+
 INTENT_THRESH = float(os.getenv("INTENT_THRESH", "0.55"))
 
 
 def _sess():
-    """Enhanced session tracking"""
+    """Session state for chat flow."""
     s = session.setdefault("pf", {})
     s.setdefault("shown", {
         "about": False,
@@ -965,10 +1124,9 @@ def _sess():
 
 
 def route_intent(text: str):
-    """Use trained pipeline to return (LABEL, CONFIDENCE)"""
+    """Use trained pipeline to return (LABEL, CONFIDENCE)."""
     q = (text or "").strip().lower()
 
-    # Fallback if model is missing
     if INTENT_PIPE is None:
         return "fallback", 0.0
 
@@ -978,25 +1136,21 @@ def route_intent(text: str):
     return labels[i].upper(), float(proba[i])
 
 
-
 def is_followup_question(question: str, last_query: str, last_intent: str) -> bool:
-    """Detect if question is a follow-up"""
+    """Detect if a question is likely referring to the previous turn."""
     if not last_intent or not last_query:
         return False
 
     q_lower = question.lower()
 
-    # Explicit follow-up phrases
     followup_phrases = [
         "tell me more", "more about", "elaborate", "explain", "what about",
         "how about", "details", "specifically", "which one", "that one",
         "go on", "continue", "and", "also"
     ]
 
-    # Short questions with pronouns (likely referring back)
     pronouns = ["it", "that", "this", "them", "those", "these"]
 
-    # Check conditions
     is_short = len(question.split()) <= 5
     has_pronoun = any(p in q_lower.split() for p in pronouns)
     has_followup = any(phrase in q_lower for phrase in followup_phrases)
@@ -1005,7 +1159,7 @@ def is_followup_question(question: str, last_query: str, last_intent: str) -> bo
 
 
 def log_query(q: str, intent: str, score: float, outcome: str):
-    """Append JSONL line for dataset growth"""
+    """Append JSONL line for dataset growth."""
     try:
         logs = BASE_DIR / "logs"
         logs.mkdir(exist_ok=True, parents=True)
@@ -1027,6 +1181,8 @@ def log_query(q: str, intent: str, score: float, outcome: str):
 # ============================================================
 @app.route("/")
 def home():
+    # Clear the session so the bot "forgets" previous turns on refresh
+    session.pop("pf", None)
     projects = load_yaml("projects.yml")
     skills = load_yaml("skills.yml")
 
@@ -1053,11 +1209,12 @@ def chat_page():
 def api_chat():
     data = request.get_json(force=True, silent=True) or {}
     question = (data.get("question") or "").strip()
+    question = auto_align_words(question)
 
     if not question:
         return jsonify({"html": "<p>Please type a question.</p>"}), 400
 
-    # 🔹 1) Handle all special cases first (compliments, rude, who are you, where do you live, etc.)
+    # 1) Handle special cases first (small talk, identity, rude, etc.)
     handled, edge_html = handle_edge_case(question, qa_system=qa)
     if handled:
         log_query(question, "edge_case", 1.0, "edge_case")
@@ -1067,43 +1224,51 @@ def api_chat():
     if res["ok"]:
         return jsonify({"html": res["html"], "ok": True})
 
-    # then normal flow
+    # Then normal flow
     s = _sess()
     s["conversation_turn"] += 1
 
-
-    # Get intent
     intent, score = route_intent(question)
 
-    # Handle GREETING → ABOUT on first turn
+    # GREETING → ABOUT on first turn
     if intent == "GREETING" and s["conversation_turn"] <= 1:
         intent = "ABOUT"
-        score = 0.9  # High confidence for first greeting
+        score = 0.9
 
     # Smart follow-up detection
     if intent == "FOLLOWUP" or is_followup_question(question, s["last_query"], s["last_intent"]):
-        # Boost confidence if we detect follow-up patterns
         if score < INTENT_THRESH:
             score = 0.75
         intent = "FOLLOWUP"
 
     if score >= INTENT_THRESH:
         intent_lower = intent.lower()
+        print(f"DEBUG STREAM passed: {intent_lower}")
 
-        # Check edge cases before handling as offtopic
         if intent_lower == "offtopic":
             html_response = get_smart_refusal(question)
             log_query(question, intent, score, "offtopic_refusal")
             return jsonify({"html": html_response, "ok": False})
 
-
-        # Check if this intent was already shown
         is_repeat = s["shown"].get(intent_lower, False)
 
-        # Get conversational response
-        html_response = get_response(intent_lower, is_repeat, s.get("last_intent"))
+        # For skills intent, try TF-IDF first, fall back to widget
+        if intent_lower == "skills":
+            skills_res = qa.answer(question, top_k=1)
+            if skills_res["ok"]:
+                html_response = skills_res["html"]
+            else:
+                # lower threshold retry for skills
+                qa.thresh = 0.05
+                skills_res = qa.answer(question, top_k=1)
+                qa.thresh = 0.20  # restore original
+                if skills_res["ok"]:
+                    html_response = skills_res["html"]
+                else:
+                    html_response = get_response(intent_lower, is_repeat, s.get("last_intent"))
+        else:
+            html_response = get_response(intent_lower, is_repeat, s.get("last_intent"))
 
-        # Update session
         if intent_lower in s["shown"]:
             s["shown"][intent_lower] = True
         s["last_intent"] = intent_lower
@@ -1114,12 +1279,12 @@ def api_chat():
         log_query(question, intent, score, intent_lower)
         return jsonify({"html": html_response, "ok": True})
 
-    # Low confidence → try retrieval
+    # Low confidence → try retrieval again
     res = qa.answer(question)
     outcome = "retrieval_ok" if res["ok"] else "refuse_lowconf"
     log_query(question, f"{intent}@{score:.2f}", score, outcome)
 
-    # Update session even for retrieval
+
     s["last_query"] = question
     s["last_time"] = time.time()
     session.modified = True
@@ -1132,23 +1297,25 @@ def api_chat():
 def api_chat_stream():
     data = request.get_json(force=True, silent=True) or {}
     question = (data.get("question") or "").strip()
+    question = auto_align_words(question)
+
 
     if not question:
         return Response("Please type a question.", mimetype="text/plain")
 
-    # 🔹 1) Edge-cases first, same as /api/chat
+    # 1) Edge-cases first, same as /api/chat
     handled, edge_html = handle_edge_case(question, qa_system=qa)
     if handled:
         log_query(question, "edge_case", 1.0, "edge_case")
         return Response(edge_html, mimetype="text/plain")
 
     res = qa.answer(question, top_k=3)
+    print(f"DEBUG qa: ok={res['ok']} html={res['html'][:80]}")
     if res["ok"]:
         return Response(res["html"], mimetype="text/plain")
 
     s = _sess()
     s["conversation_turn"] += 1
-
 
     intent, score = route_intent(question)
 
@@ -1169,9 +1336,24 @@ def api_chat_stream():
             log_query(question, intent, score, "offtopic_refusal")
             return Response(html_response, mimetype="text/plain")
 
-
         is_repeat = s["shown"].get(intent_lower, False)
-        html_response = get_response(intent_lower, is_repeat, s.get("last_intent"))
+
+        # For skills intent, try TF-IDF first, fall back to widget
+        if intent_lower == "skills":
+            skills_res = qa.answer(question, top_k=1)
+            if skills_res["ok"]:
+                html_response = skills_res["html"]
+            else:
+                # lower threshold retry for skills
+                qa.thresh = 0.05
+                skills_res = qa.answer(question, top_k=1)
+                qa.thresh = 0.20  # restore original
+                if skills_res["ok"]:
+                    html_response = skills_res["html"]
+                else:
+                    html_response = get_response(intent_lower, is_repeat, s.get("last_intent"))
+        else:
+            html_response = get_response(intent_lower, is_repeat, s.get("last_intent"))
 
         if intent_lower in s["shown"]:
             s["shown"][intent_lower] = True
@@ -1213,4 +1395,4 @@ if __name__ == "__main__":
     except Exception:
         print("INTENTS: (unavailable)")
     print("KB docs:", len(qa.docs))
-    app.run(host=host, port=port, debug=False)
+    app.run(host=host, port=port, debug=True, use_reloader=False)

@@ -9,43 +9,58 @@
 *::before,
 *::after { box-sizing: border-box; }
 
+/* Initial hidden state */
+body.hero-animate:not(.chat-mode) .hero-title,
+body.hero-animate:not(.chat-mode) .hero-subtitle,
+body.hero-animate:not(.chat-mode) .hero-buttons,
+body.hero-animate:not(.chat-mode) .ask-box,
+body.hero-animate:not(.chat-mode) #tiles {
+  opacity: 0;
+  transform: translateY(12px);
+  filter: blur(6px);
+  transition:
+    opacity 0.9s cubic-bezier(.2,.8,.2,1),
+    transform 0.9s cubic-bezier(.2,.8,.2,1),
+    filter 0.9s cubic-bezier(.2,.8,.2,1);
+  will-change: opacity, transform, filter;
+}
+
+/* When activated */
+body.hero-animate.start:not(.chat-mode) .hero-title,
+body.hero-animate.start:not(.chat-mode) .hero-subtitle,
+body.hero-animate.start:not(.chat-mode) .hero-buttons,
+body.hero-animate.start:not(.chat-mode) .ask-box,
+body.hero-animate.start:not(.chat-mode) #tiles {
+  opacity: 1;
+  transform: translateY(0);
+  filter: blur(0);
+}
+
+/* Gentle stagger */
+body.hero-animate:not(.chat-mode) .hero-subtitle { transition-delay: 0.08s; }
+body.hero-animate:not(.chat-mode) .hero-buttons  { transition-delay: 0.16s; }
+body.hero-animate:not(.chat-mode) .ask-box       { transition-delay: 0.22s; }
+body.hero-animate:not(.chat-mode) #tiles         { transition-delay: 0.30s; }
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  body:not(.chat-mode) .hero-title,
+  body:not(.chat-mode) .hero-subtitle,
+  body:not(.chat-mode) .hero-buttons,
+  body:not(.chat-mode) .ask-box,
+  body:not(.chat-mode) #tiles {
+    transition: none;
+    transform: none;
+    filter: none;
+    opacity: 1;
+  }
+}
+
 body {
   font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background: #9c8e8e;
   color: #222;
   margin: 0;
-}
-
-/* Only hide + animate on landing (not in chat mode) */
-body:not(.chat-mode) .hero-title,
-body:not(.chat-mode) .hero-subtitle {
-  opacity: 0;
-  transform: translateY(-24px);
-  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
-}
-
-body:not(.chat-mode) #tiles {
-  opacity: 0;
-  transform: translateY(40px);
-  transition: opacity 0.7s ease-out, transform 0.7s ease-out;
-}
-
-/* When page is ready → animate in (still only for non-chat) */
-body.hero-animate:not(.chat-mode) .hero-title {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-body.hero-animate:not(.chat-mode) .hero-subtitle {
-  opacity: 1;
-  transform: translateY(0);
-  transition-delay: 0.12s;
-}
-
-body.hero-animate:not(.chat-mode) #tiles {
-  opacity: 1;
-  transform: translateY(0);
-  transition-delay: 0.25s;
 }
 
 
@@ -145,13 +160,24 @@ body.hero-animate:not(.chat-mode) #tiles {
   -webkit-backdrop-filter: blur(6px);
 }
 
-.ask-box input {
+.ask-box input,
+.ask-box textarea {
   flex: 1;
   border: none;
   outline: none;
   font-size: 1rem;
   padding: 0.6rem 1rem;
   background: transparent;
+  font-family: inherit;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.4;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.ask-box input::placeholder,
+.ask-box textarea::placeholder {
+  color: rgba(0,0,0,0.45);
 }
 .ask-box button {
   border: none;
@@ -672,9 +698,9 @@ body:not(.chat-mode) #tiles .tile-emoji { font-size: 1.35rem; }
   letter-spacing: .5px;
   padding: 1%;
 
-  font-size: 1.5rem; 
-  font-weight: 900; 
-  margin: 2%; 
+  font-size: 1.5rem;
+  font-weight: 900;
+  margin: 2%;
   margin-left: 3%;
 }
 /* Make the right column text more readable */
@@ -766,9 +792,9 @@ body:not(.chat-mode) #tiles .tile-emoji { font-size: 1.35rem; }
   letter-spacing: .5px;
   padding: 1%;
 
-  font-size: 1.5rem; 
-  font-weight: 900; 
-  margin: 2%; 
+  font-size: 1.5rem;
+  font-weight: 900;
+  margin: 2%;
   margin-left: 3%;}
 .project-grid{ display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.25rem; padding: 0 .5rem; }
 
@@ -1759,10 +1785,5 @@ body.modal-open { overflow: hidden; }
     max-width: none;   /* override your 450/500 max-width */
     margin: 0.5rem 0;
   }
+
 }
-
-
-
-
-
-

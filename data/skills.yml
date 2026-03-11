@@ -6,13 +6,19 @@ Frontend:
   - Bootstrap
   - Responsive UI Design
 
+Languages:
+  - Python
+  - Java
+  - JavaScript
+  - React JS
+
 Backend:
-  - Python (Flask)
-  - REST APIs
-  - Session & Auth Handling
-  - Java (Core, Android-focused)
-  - MySQL
-  - SQLite
+  - Python
+  - Java
+  - JavaScript
+  - REST API development
+  - Authentication & session management
+  - Databases: MySQL, SQLite, Firebase Firestore
 
 AI & Machine Learning:
   - Machine Learning Fundamentals

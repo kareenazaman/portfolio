@@ -1,160 +1,180 @@
-text,intent
+query,intent
+who are you,about
+tell me about yourself,about
+what's your background,about
+who is kareena,about
+introduce yourself,about
+your bio,about
+about you,about
+tell me about kareena,about
+kareena's background,about
+what do you do,about
+who r u,about
+tell me abt yourself,about
+what's ur background,about
+give me an intro,about
+a little about you,about
+describe yourself,about
+what's your story,about
+tell me your story,about
+what are you about,about
+what do u do,about
+who r you,about
+kareena who,about
+about kareena,about
+what is kareena about,about
+tell me about you,about
+tell me about u,about
+tell me bout u,about
+show me projects,projects
+what have you built,projects
+your work,projects
+tell me about your projects,projects
+what projects,projects
+portfolio work,projects
+show your projects,projects
+project highlights,projects
+what apps did you make,projects
+built anything cool,projects
+show me what you made,projects
+what have u built,projects
+show projects,projects
+your apps,projects
+what did you create,projects
+what did u make,projects
+show me your work,projects
+what software have you built,projects
+what have you developed,projects
+list your projects,projects
+give me your projects,projects
+projects please,projects
+what are your projects,projects
+any cool projects,projects
+what are your skills,skills
+what languages do you know,skills
+tech stack,skills
+what can you do,skills
+skills,skills
+technologies,skills
+programming languages,skills
+what do you know,skills
+technical skills,skills
+tools you use,skills
+what backend tools do you use,skills
+backend tools,skills
+what do you use for backend,skills
+what frontend tools do you use,skills
+frontend tools,skills
+what frameworks do you use,skills
+what libraries do you use,skills
+what databases do you use,skills
+what do you code in,skills
+what's your tech stack,skills
+what technology do you use,skills
+what tools do you use,skills
+backend stack,skills
+frontend stack,skills
+what programming language,skills
+what language,skills
+what languages,skills
+programming language,skills
+what's your tech stack,skills
+tech stack,skills
+what frameworks,skills
+your stack,skills
+how to contact,contact
+email,contact
+reach you,contact
+how do i contact,contact
+contact info,contact
+get in touch,contact
+linkedin,contact
+how to reach,contact
+how can i contact you,contact
+what's your email,contact
+contact kareena,contact
+your linkedin,contact
+tell me more,followup
+more details,followup
+elaborate,followup
+explain that,followup
+go on,followup
+what else,followup
+continue,followup
+more info,followup
+details,followup
+can you expand,followup
+say more about that,followup
+tell me more about that,followup
 hi,greeting
 hello,greeting
 hey,greeting
-hey there,greeting
-hello kareena,greeting
 good morning,greeting
-good evening,greeting
-hi kareena,greeting
-hiya,greeting
-yo,greeting
 what's up,greeting
-hey what's up,greeting
-tell me about yourself,about
-who are you,about
-introduce yourself,about
-what do you do,about
-who is kareena,about
-tell me who you are,about
-about you,about
-your background,about
-tell me about kareena,about
-what's your story,about
-where are you from,about
-where do you study,about
-what do you study,about
-show me your projects,projects
-what projects have you built,projects
-projects?,projects
-show projects,projects
-list your projects,projects
-display projects,projects
-what have you made,projects
-what have you built,projects
-show me what you've built,projects
-your work,projects
-portfolio projects,projects
-tell me about your projects,projects
-show me project details,projects
-what skills do you have,skills
-show me your skills,skills
-skills?,skills
-technical skills?,skills
-tech stack?,skills
-what languages do you know,skills
-what technologies do you use,skills
-what can you code in,skills
-programming languages,skills
-frameworks you know,skills
-what tools do you use,skills
-your technical skills,skills
-contact info?,contact
-how do I contact you,contact
-email?,contact
-linkedin?,contact
-how can I reach you,contact
-contact details,contact
-how to reach you,contact
-your email,contact
-your contact,contact
-get in touch,contact
-reach out,contact
-connect with you,contact
-tell me more,followup
-explain more,followup
-continue,followup
-go on,followup
-what about that,followup
-and then what,followup
-more details,followup
-elaborate,followup
-tell me more about it,followup
-can you expand on that,followup
-more info,followup
-that makes no sense,offtopic
-what's the weather,offtopic
-tell me a joke,offtopic
-play a game,offtopic
-do you like food,offtopic
-who won the game,offtopic
-what's the news,offtopic
-tell me about politics,offtopic
-what movies do you like,offtopic
-recommend a restaurant,offtopic
-what's trending,offtopic
-sing a song,offtopic
-tell me a story,offtopic
-you are pretty,smalltalk_positive
-u r pretty,smalltalk_positive
-you look cute,smalltalk_positive
-cute bot,smalltalk_positive
-i love this,smalltalk_positive
-this looks great,smalltalk_positive
-nice,smalltalk_positive
-cool,smalltalk_positive
-amazing,smalltalk_positive
-beautiful,smalltalk_positive
-awesome work,smalltalk_positive
-impressive,smalltalk_positive
-great portfolio,smalltalk_positive
-this is cool,smalltalk_positive
-love it,smalltalk_positive
-u r stupid,smalltalk_negative
-you are stupid,smalltalk_negative
-you suck,smalltalk_negative
-bad bot,smalltalk_negative
-you are dumb,smalltalk_negative
-annoying,smalltalk_negative
-useless,smalltalk_negative
-hate you,smalltalk_negative
-this is terrible,smalltalk_negative
-not helpful,smalltalk_negative
-you're bad,smalltalk_negative
-are you smart,smalltalk_other
-do you like me,smalltalk_other
-are you real,smalltalk_other
-what's your favourite project,smalltalk_other
-do you have a favourite project,smalltalk_other
-are you single,smalltalk_other
-what's your favourite color,smalltalk_other
-why are you like this,smalltalk_other
-do you think you're good,smalltalk_other
-are you a robot,smalltalk_other
-are you human,smalltalk_other
-who made you,smalltalk_other
-how old are you,smalltalk_other
-how are you,smalltalk_other
-how r u,smalltalk_other
-how are u,smalltalk_other
-hru,smalltalk_other
-how's it going,smalltalk_other
-how you doing,smalltalk_other
-wyd,smalltalk_other
-are you from bangladesh?,origin
-are u from bangladesh?,origin
-are you bangladeshi?,origin
-are u bangladeshi?,origin
-where are your roots?,origin
-are you originally from bangladesh?,origin
-your origin?,origin
+yo,greeting
+hi there,greeting
+hey there,greeting
+hello there,greeting
+hiya,greeting
+hey kareena,greeting
+hi kareena,greeting
+thanks,farewell
+thank you,farewell
 bye,farewell
 goodbye,farewell
 see you,farewell
-see you later,farewell
-talk to you later,farewell
-take care,farewell
-catch you later,farewell
-i have to go,farewell
-i’m leaving,farewell
-i am leaving,farewell
-gotta go,farewell
-logging off,farewell
-signing off,farewell
-that’s all,farewell
-thanks bye,farewell
-thank you bye,farewell
+appreciate it,farewell
+that's all,farewell
+done,farewell
+thank u,farewell
+ty,farewell
 bye bye,farewell
-byee,farewell
-ok bye,farewell
-okay bye,farewell
+see ya,farewell
+what are you,identity
+are you a bot,identity
+are you ai,identity
+who made you,identity
+are you real,identity
+chatbot,identity
+what is this,identity
+are you a real person,identity
+are you human,identity
+are you chatgpt,identity
+is this a bot,identity
+who built you,identity
+what's your experience,experience
+work experience,experience
+where have you worked,experience
+your experience,experience
+professional experience,experience
+what jobs have you had,experience
+have you worked anywhere,experience
+what is your experience,experience
+do you have experience,experience
+tell me about your experience,experience
+what have you done professionally,experience
+your work history,experience
+where do you study,education
+what do you study,education
+your education,education
+what university,education
+what school,education
+what degree,education
+are you a student,education
+what are you studying,education
+your degree,education
+where do u study,education
+what's your education,education
+tru,education
+what's the weather,offtopic
+tell me a joke,offtopic
+how old are you,offtopic
+favorite color,offtopic
+recommend a movie,offtopic
+best restaurant,offtopic
+what's the news,offtopic
+stock prices,offtopic
+sports scores,offtopic
+play a game,offtopic
+tell me a story,offtopic
+who is the president,offtopic
