@@ -98,7 +98,7 @@ def load_kb_markdown() -> List[Dict[str, Any]]:
 
 
 def normalize_projects_to_text(proj: Dict[str, Any]) -> str:
-    """Turns a project YAML entry into one retrieval-friendly paragraph."""
+    """Turns a project YAML entry into a clean, formatted block for chat."""
     title = proj.get("title", "")
     desc = proj.get("desc", "")
     stack = ", ".join((proj.get("stack", []) or []))
@@ -106,14 +106,21 @@ def normalize_projects_to_text(proj: Dict[str, Any]) -> str:
     gh = links.get("github", "")
     dm = links.get("demo", "")
 
-    parts = [f"Project: {title}. {desc}"]
+    parts = []
+    if title:
+        parts.append(f"**Project: {title}**")
+    if desc:
+        parts.append(desc)
     if stack:
-        parts.append(f"Stack: {stack}.")
+        parts.append(f"**Stack:** {stack}")
     if gh:
-        parts.append(f"github = {gh}")
+        parts.append(f"**GitHub:** <a href='{gh}' target='_blank' style='text-decoration: underline;'>View Code</a>")
     if dm:
-        parts.append(f"demo = {dm}")
-    return " ".join(p for p in parts if p).strip()
+        parts.append(
+            f"**Live Demo:** <a href='{dm}' target='_blank' style='text-decoration: underline;'>Visit Site</a>")
+
+    # Join with newlines so the HTML formatter creates distinct visual lines
+    return "\n".join(p for p in parts if p).strip()
 
 
 def build_corpus_from_portfolio() -> List[Dict[str, Any]]:
@@ -895,9 +902,9 @@ def format_text_to_html(text: str) -> str:
 
     t = str(text).replace("\r\n", "\n").replace("\r", "\n").strip()
 
-    # Turn inline separators into bullet lines
-    t = re.sub(r"\s-\s+(?=[A-Z])", "\n- ", t)
-    t = re.sub(r"(?<=\S)-\s*(?=[A-Z])", "\n- ", t)
+    # Turn inline separators into bullet lines SAFELY
+    # Only split if there is a clear space before AND after the hyphen
+    t = re.sub(r"\s+-\s+(?=[A-Z])", "\n- ", t)
 
     lines = [ln.strip() for ln in t.split("\n") if ln.strip()]
 
